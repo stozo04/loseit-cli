@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "loseit-cli"
+version = "0.1.0"
+description = "Log Lose It! nutrition (calories/protein/fiber/macros) into DAILY_LOG.json"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+loseit-cli = "loseit.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["loseit"]

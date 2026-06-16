@@ -1,0 +1,5 @@
+{
+  "daily_log": "C:\\path\\to\\DAILY_LOG.json",
+  "token_path": "~/.config/loseit/token",
+  "export_url": "https://www.loseit.com/export/data"
+}
