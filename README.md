@@ -1,6 +1,6 @@
 # loseit-cli
 
-The **nutrition** counterpart to [`speediance-cli`](https://github.com/stozo04/speediance-cli) (strength) and `cardio-cli` (cardio).
+The **nutrition** counterpart to [`speediance-cli`](https://github.com/stozo04/speediance-cli) (strength) and [`google-health-cli`](https://github.com/stozo04/google-health-cli) (cardio).
 
 It reads Steven's **Lose It!** data export and writes per-day nutrition — calories, **protein**, carbs, fat, **fiber**, and a per-meal breakdown — into `DAILY_LOG.json`, matching the existing `nutrition` schema.
 
