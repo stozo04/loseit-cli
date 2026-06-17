@@ -1,0 +1,74 @@
+{
+  "2026-06-15": {
+    "source": "Lose It export",
+    "calories_food": 120,
+    "protein_g": 24,
+    "carbs_g": 3,
+    "fat_g": 1,
+    "fiber_g": 1,
+    "meals": [
+      {
+        "meal": "Snacks",
+        "calories": 120,
+        "protein_g": 24,
+        "carbs_g": 3,
+        "fat_g": 1,
+        "items": [
+          {
+            "name": "Protein Shake",
+            "qty": "1 scoop",
+            "calories": 120
+          }
+        ]
+      }
+    ],
+    "loseit_budget": 1663,
+    "loseit_under": 1543
+  },
+  "2026-06-16": {
+    "source": "Lose It export",
+    "calories_food": 505,
+    "protein_g": 75,
+    "carbs_g": 36,
+    "fat_g": 6,
+    "fiber_g": 3,
+    "meals": [
+      {
+        "meal": "Breakfast",
+        "calories": 225,
+        "protein_g": 23,
+        "carbs_g": 36,
+        "fat_g": 0,
+        "items": [
+          {
+            "name": "Greek Yogurt",
+            "qty": "1 cup",
+            "calories": 120
+          },
+          {
+            "name": "Banana",
+            "qty": "1 each",
+            "calories": 105
+          }
+        ]
+      },
+      {
+        "meal": "Lunch",
+        "calories": 280,
+        "protein_g": 52,
+        "carbs_g": 0,
+        "fat_g": 6,
+        "items": [
+          {
+            "name": "Chicken Breast",
+            "qty": "6 oz",
+            "calories": 280
+          }
+        ]
+      }
+    ],
+    "loseit_budget": 1663,
+    "loseit_under": 1158,
+    "exercise_adjustment": 120
+  }
+}

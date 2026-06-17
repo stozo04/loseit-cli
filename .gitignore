@@ -1,6 +1,25 @@
+# Secrets & local state — never commit credentials, tokens, or exports.
 config.json
-__pycache__/
-*.pyc
-.venv/
-*.zip
 token
+*.zip
+
+# Build output.
+/bin/
+/dist/
+/loseit-cli
+/loseit-cli.exe
+*.exe
+
+# Go test/coverage artifacts.
+*.out
+coverage.txt
+
+# Local-only notes — personal context, kept on disk, never published.
+HANDOFF.md
+CLAUDE.md
+
+# Editor/OS noise.
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
