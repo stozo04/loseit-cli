@@ -1,0 +1,41 @@
+# golangci-lint v2 configuration.
+# The "standard" meta-set (govet, staticcheck, errcheck, ineffassign, unused)
+# plus a few high-signal extras. bodyclose guards the HTTP export fetch against a
+# leaked response body — load-bearing for this tool.
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - revive      # style/lint rules (golint successor)
+    - gosec       # security issues
+    - misspell    # comment/string typos
+    - bodyclose   # http.Response.Body always closed
+    - errorlint   # correct errors.Is/As and %w usage
+    - nilnil      # no (nil, nil) returns
+  settings:
+    gosec:
+      excludes:
+        # G304: file paths are user-supplied by design (--config, --zip,
+        # token_path). We validate intent, not provenance. This tool writes
+        # nothing, so there is no G306 (world-readable write) to exclude.
+        - G304
+        # G101: these are environment-variable *names*, not credentials.
+        - G101
+  exclusions:
+    generated: lax
+    rules:
+      # Test files may take liberties (long funcs, unchecked errors in helpers).
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/stozo04/loseit-cli

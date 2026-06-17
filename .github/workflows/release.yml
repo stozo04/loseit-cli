@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  # Tag-driven: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+  push:
+    tags:
+      - "v*"
+  # Button-driven: Actions → Release → "Run workflow" → enter the version.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to create and publish, e.g. v1.2.3"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # Manual runs create + push the tag at the checked-out commit so GoReleaser
+      # has a version to build. A tag pushed with the built-in GITHUB_TOKEN does
+      # NOT start another workflow run, so the push-tags trigger above never fires
+      # a second, duplicate release.
+      - name: Create and push tag (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::version must be semver-like vX.Y.Z (got '$VERSION')"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
+            echo "::error::tag $VERSION already exists"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "$VERSION"
+          git push origin "$VERSION"
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

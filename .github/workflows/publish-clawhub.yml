@@ -1,0 +1,30 @@
+name: Publish to ClawHub
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - SKILL.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install clawhub CLI
+        run: npm install -g clawhub
+
+      - name: Authenticate clawhub
+        run: clawhub login --token "$CLAWHUB_TOKEN"
+        env:
+          # Per-repo secret (the google-health/speediance token does not carry
+          # over). Owner adds CLAWHUB_TOKEN_LOSEIT to this repo's secrets.
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN_LOSEIT }}
+
+      - name: Publish skill
+        run: clawhub skill publish . --owner stozo04 --slug loseit --name "Lose It Nutrition"
