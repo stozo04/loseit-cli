@@ -33,22 +33,24 @@ go install github.com/stozo04/loseit-cli/cmd/loseit-cli@latest
 
 ## Getting your data
 
-1. **Email + password (recommended — self-sufficient):** put your Lose It credentials in `config.json`
-   (or `LOSEIT_EMAIL` / `LOSEIT_PASSWORD`), then just:
-   ```sh
-   loseit-cli days --json          # logs in automatically when needed, fetches, parses
-   loseit-cli login                # (optional) explicit login to refresh the saved token
-   ```
-   `login` POSTs to Lose It's password-grant endpoint, saves the returned `liauth` session cookie to
-   `token_path`, and `days` reuses it until it expires (~14 days) — then re-logs in on its own. No
-   browser, no manual cookie copy, no captcha (the API doesn't require the one the web form attaches).
-2. **Downloaded ZIP (no credentials):**
-   ```sh
-   loseit-cli days --zip ~/Downloads/loseit-export.zip --json
-   ```
-3. **Manual cookie:** save your `liauth` cookie (loseit.com → F12 → Application → Cookies) to
-   `~/.config/loseit/token` (or set `LOSEIT_TOKEN`), then `loseit-cli days --json`. Works until the
-   cookie expires; option 1 refreshes it for you.
+Set your two Lose It credentials — **`email` and `password`** — and that's it:
+
+```sh
+# config.json (next to the binary or in the working directory)
+{ "email": "you@example.com", "password": "your-loseit-password" }
+```
+
+(or export `LOSEIT_EMAIL` / `LOSEIT_PASSWORD` instead), then:
+
+```sh
+loseit-cli days --json          # logs in automatically when needed, fetches, parses
+loseit-cli login                # (optional) explicit login to refresh the saved token
+```
+
+`days` logs in on first use, caches the returned `liauth` session cookie, and re-logs in on its own
+when it expires (~14 days) — no browser, no manual cookie copy, no captcha (the API doesn't require
+the one the web form attaches). Email + password are the **only** inputs you supply; everything else
+is handled for you.
 
 ## Usage
 
@@ -92,22 +94,38 @@ ClawHub skill.
 
 ## Config
 
-`config.json` is **optional** (the defaults work). Discovery precedence: `--config` flag >
-`LOSEIT_CONFIG` env > `./config.json` > next to the executable.
+The only thing you configure is your Lose It **email** and **password**:
 
 ```json
 {
-  "token_path": "~/.config/loseit/token",
-  "export_url": "https://www.loseit.com/export/data",
-  "login_url": "https://api.loseit.com/account/login",
   "email": "you@example.com",
   "password": "your-loseit-password"
 }
 ```
 
-`email`/`password` are optional (the `--zip` and manual-cookie paths need neither) and are **gitignored**
-with `config.json` — keep them local. Env overrides: `LOSEIT_EMAIL`, `LOSEIT_PASSWORD`, `LOSEIT_TOKEN`
-(cookie value), `LOSEIT_CONFIG`, `LOSEIT_TOKEN_PATH`, `LOSEIT_EXPORT_URL`, `LOSEIT_LOGIN_URL`.
+`config.json` is **gitignored** — keep it local; the password is never printed (`config show` emits
+`password_set` only). Discovery precedence: `--config` flag > `LOSEIT_CONFIG` env > `./config.json` >
+next to the executable. Everything else (the session token, the login/export endpoints) is handled by
+the binary and needs no configuration.
+
+## Advanced / fallbacks
+
+You should not need any of these for normal use — they exist as a safety net and for testing.
+
+**Fallback paths (no credentials):**
+
+- **Downloaded ZIP:** export your data from Lose It (Settings → Export), then parse it directly:
+  ```sh
+  loseit-cli days --zip ~/Downloads/loseit-export.zip --json
+  ```
+- **Manual cookie:** save a `liauth` cookie (loseit.com → F12 → Application → Cookies) to
+  `~/.config/loseit/token` (or set `LOSEIT_TOKEN`), then `loseit-cli days --json`. Works until the
+  cookie expires; the email/password path refreshes it for you.
+
+**Environment overrides (break-glass / testing):** `LOSEIT_EMAIL` and `LOSEIT_PASSWORD` mirror the
+config keys. The rest are rarely needed — `LOSEIT_TOKEN` (a `liauth` cookie value), `LOSEIT_CONFIG`
+(config path), `LOSEIT_TOKEN_PATH` (token cache location), and `LOSEIT_EXPORT_URL` / `LOSEIT_LOGIN_URL`
+(endpoint overrides; the defaults are baked in).
 
 ## Notes
 

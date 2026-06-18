@@ -45,6 +45,23 @@ The pushed tag triggers the same Release workflow.
 Pre-release tags (e.g. `v1.2.3-rc.1`) are auto-marked as prereleases by GoReleaser
 (`prerelease: auto` in `.goreleaser.yaml`).
 
+## Release notes & changelog (auto-generated)
+
+GoReleaser builds the release body automatically on every `vX.Y.Z` tag — there is no
+`CHANGELOG.md` to hand-maintain:
+
+- **Changelog** — commit subjects since the previous tag, **grouped by [Conventional
+  Commit](https://www.conventionalcommits.org) type**: `feat:` → **Features**, `fix:` →
+  **Bug fixes**, everything else → **Other changes**. Commits prefixed `docs:`, `test:`,
+  or `chore:` are excluded.
+- **Footer** — a static install snippet (`go install …@<tag>` + a pointer to
+  `SKILL.md`/`AGENTS.md`), appended to every release.
+
+So **commit subjects are the release notes** — write Conventional Commits and squash-merge
+each PR with a clean `feat:`/`fix:` title so one PR = one tidy changelog line. Config lives
+in `.goreleaser.yaml` → `changelog.groups` and `release.footer`. (There is no per-release
+header; add any release-specific narrative by editing the GitHub Release after it posts.)
+
 ## ClawHub (separate)
 
 The ClawHub skill is **not** tied to releases. It republishes whenever `SKILL.md` changes

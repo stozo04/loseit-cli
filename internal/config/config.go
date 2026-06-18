@@ -22,12 +22,17 @@ import (
 // Environment variable names (frozen). G101: these are env-var names, not
 // embedded credentials.
 const (
+	// User-facing credentials — the only inputs a normal user supplies.
+	EnvEmail    = "LOSEIT_EMAIL"
+	EnvPassword = "LOSEIT_PASSWORD" //nolint:gosec // env var name, not a secret.
+
+	// Advanced/internal overrides — not user-facing. Retained for break-glass
+	// fallbacks and tests (httptest servers point the URLs/token here); do not
+	// remove any of them.
 	EnvConfig    = "LOSEIT_CONFIG"
 	EnvToken     = "LOSEIT_TOKEN" //nolint:gosec // env var name, not a secret.
 	EnvTokenPath = "LOSEIT_TOKEN_PATH"
 	EnvExportURL = "LOSEIT_EXPORT_URL"
-	EnvEmail     = "LOSEIT_EMAIL"
-	EnvPassword  = "LOSEIT_PASSWORD" //nolint:gosec // env var name, not a secret.
 	EnvLoginURL  = "LOSEIT_LOGIN_URL"
 )
 
