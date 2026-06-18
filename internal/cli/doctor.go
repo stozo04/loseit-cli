@@ -3,6 +3,7 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/stozo04/loseit-cli/internal/config"
 	"github.com/stozo04/loseit-cli/internal/export"
 	"github.com/stozo04/loseit-cli/internal/version"
 )
@@ -12,11 +13,13 @@ import (
 // has no OAuth to validate, and tokenPresent is a local file/env presence test
 // that never reveals the cookie value.
 type doctorReport struct {
-	TokenPresent bool   `json:"tokenPresent"`
-	ExportURL    string `json:"exportURL"`
-	TokenPath    string `json:"tokenPath"`
-	ConfigPath   string `json:"configPath"`
-	Version      string `json:"version"`
+	TokenPresent       bool   `json:"tokenPresent"`
+	CredentialsPresent bool   `json:"credentialsPresent"`
+	ExportURL          string `json:"exportURL"`
+	LoginURL           string `json:"loginURL"`
+	TokenPath          string `json:"tokenPath"`
+	ConfigPath         string `json:"configPath"`
+	Version            string `json:"version"`
 }
 
 // newDoctorCmd implements `doctor`: print config + whether a token is present as
@@ -34,21 +37,32 @@ func newDoctorCmd(app *App) *cobra.Command {
 			}
 
 			present := export.HasToken(cfg)
+			creds := cfg.HasCredentials()
 			report := doctorReport{
-				TokenPresent: present,
-				ExportURL:    cfg.ExportURL,
-				TokenPath:    cfg.TokenPath,
-				ConfigPath:   cfg.ConfigPath,
-				Version:      version.Info().Version,
+				TokenPresent:       present,
+				CredentialsPresent: creds,
+				ExportURL:          cfg.ExportURL,
+				LoginURL:           cfg.LoginURL,
+				TokenPath:          cfg.TokenPath,
+				ConfigPath:         cfg.ConfigPath,
+				Version:            version.Info().Version,
 			}
 			if err := writeJSON(cmd.OutOrStdout(), report); err != nil {
 				return err
 			}
 
-			if !present {
+			switch {
+			case present:
+				// All set — a saved token is present.
+			case creds:
 				fprintf(cmd.ErrOrStderr(),
-					"\nNo Lose It token found. Pass --zip <export.zip> with a fresh download, "+
-						"or save the liauth cookie to %s.\n", cfg.TokenPath)
+					"\nNo saved token yet, but credentials are set — `loseit-cli login` "+
+						"(or `days` on its own) will log in and save one.\n")
+			default:
+				fprintf(cmd.ErrOrStderr(),
+					"\nNo Lose It token or credentials. Set %s/%s (or email/password in config.json) "+
+						"then run `loseit-cli login`, or pass --zip <export.zip>.\n",
+					config.EnvEmail, config.EnvPassword)
 			}
 			return nil
 		},

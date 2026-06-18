@@ -74,14 +74,28 @@ nutrition object is frozen. An empty selection emits `{}`.
 - Meal order: `Breakfast, Lunch, Dinner, Snacks` first (that order), then any other meals in first-encounter
   order. A blank meal name becomes `Other`. Deleted rows are excluded.
 
+## `login`
+
+Authenticates with email/password and saves a fresh `liauth` session token to `token_path`. POSTs
+`username`/`password`/`grant_type=password` (form-encoded) to `login_url` (`api.loseit.com/account/login`);
+the reCAPTCHA the web form attaches is **not** required by the API. On success prints a one-line
+confirmation to stdout (never the token). Bad credentials / no cookie returned → exit `2`. Credentials come
+from `LOSEIT_EMAIL`/`LOSEIT_PASSWORD` or `email`/`password` in `config.json`.
+
+`days` (without `--zip`) auto-logs-in too: if the saved token is missing or expired and credentials are
+configured, it logs in, saves the token, and retries once — so the cookie fetch is self-sufficient.
+
 ## `config show --json`
 
-The resolved effective config. Key order frozen:
+The resolved effective config. The password is **never** emitted (only `password_set`). Key order:
 
 ```json
 {
   "token_path": "~/.config/loseit/token",
   "export_url": "https://www.loseit.com/export/data",
+  "login_url": "https://api.loseit.com/account/login",
+  "email": "you@example.com",
+  "password_set": true,
   "config_path": "<path>"
 }
 ```
@@ -90,14 +104,16 @@ The resolved effective config. Key order frozen:
 
 ## `doctor`
 
-Reports config + whether a token is present. **No network** (Lose It has no OAuth to validate). Always
-exits `0` — lacking a token is not a failure because `--zip` needs none; a stderr hint is printed when no
-token is found. Never reveals the cookie value. Key order frozen:
+Reports config + whether a token and/or credentials are present. **No network.** Always exits `0` — lacking
+a token is not a failure (`--zip` needs none, and credentials enable auto-login); a stderr hint is printed
+when neither is available. Never reveals the cookie or password. Key order:
 
 ```json
 {
   "tokenPresent": false,
+  "credentialsPresent": true,
   "exportURL": "https://www.loseit.com/export/data",
+  "loginURL": "https://api.loseit.com/account/login",
   "tokenPath": "~/.config/loseit/token",
   "configPath": "<path>",
   "version": "<version>"
@@ -112,7 +128,10 @@ token is found. Never reveals the cookie value. Key order frozen:
 
 ## Auth model
 
-- `--zip PATH` reads a downloaded export — **no token**. This is the reliable headless/agent path.
-- Cookie fetch (`days` without `--zip`) sends `Cookie: liauth=<t>; fn_auth=<t>`; the token comes from
-  `LOSEIT_TOKEN` or the `token_path` file. **The `liauth` cookie expires with no auto-refresh**, so headless
-  cookie fetches eventually fail (exit `2`, "token probably expired") — fall back to `--zip`.
+- **Email/password (recommended):** set `LOSEIT_EMAIL`/`LOSEIT_PASSWORD` (or `email`/`password` in config).
+  `login` and `days` obtain a `liauth` cookie from `api.loseit.com/account/login` and save it to
+  `token_path`. `days` auto-refreshes on expiry — fully self-sufficient, no captcha.
+- `--zip PATH` reads a downloaded export — **no token, no credentials**.
+- Manual cookie: put a `liauth` value in `LOSEIT_TOKEN` or the `token_path` file. The cookie fetch sends
+  `Cookie: liauth=<t>; fn_auth=<t>`. The cookie expires (~14 days); with credentials set, `days` re-logs-in
+  automatically — without them it fails (exit `2`) and you re-supply a cookie or use `--zip`.

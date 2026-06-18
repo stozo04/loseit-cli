@@ -4,13 +4,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// configView is the stable shape emitted by `config show --json`. Key order
-// frozen: token_path, export_url, config_path. There is no secret to redact —
-// the token lives in a separate file, never in config.json.
+// configView is the stable shape emitted by `config show --json`. Key order:
+// token_path, export_url, login_url, email, password_set, config_path. The
+// password is never emitted — only a boolean that it is set; email is the user's
+// own account id and is shown as-is.
 type configView struct {
-	TokenPath  string `json:"token_path"`
-	ExportURL  string `json:"export_url"`
-	ConfigPath string `json:"config_path"`
+	TokenPath   string `json:"token_path"`
+	ExportURL   string `json:"export_url"`
+	LoginURL    string `json:"login_url"`
+	Email       string `json:"email"`
+	PasswordSet bool   `json:"password_set"`
+	ConfigPath  string `json:"config_path"`
 }
 
 // newConfigCmd implements `config [show|path]`, a convenience for inspecting the
@@ -42,13 +46,23 @@ func newConfigShowCmd(app *App) *cobra.Command {
 			out := cmd.OutOrStdout()
 			if asJSON {
 				return writeJSON(out, configView{
-					TokenPath:  cfg.TokenPath,
-					ExportURL:  cfg.ExportURL,
-					ConfigPath: cfg.ConfigPath,
+					TokenPath:   cfg.TokenPath,
+					ExportURL:   cfg.ExportURL,
+					LoginURL:    cfg.LoginURL,
+					Email:       cfg.Email,
+					PasswordSet: cfg.Password != "",
+					ConfigPath:  cfg.ConfigPath,
 				})
+			}
+			pw := "<unset>"
+			if cfg.Password != "" {
+				pw = "<set>"
 			}
 			fprintf(out, "token_path:  %s\n", cfg.TokenPath)
 			fprintf(out, "export_url:  %s\n", cfg.ExportURL)
+			fprintf(out, "login_url:   %s\n", cfg.LoginURL)
+			fprintf(out, "email:       %s\n", cfg.Email)
+			fprintf(out, "password:    %s\n", pw)
 			fprintf(out, "config_path: %s\n", cfg.ConfigPath)
 			return nil
 		},

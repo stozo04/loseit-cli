@@ -40,8 +40,9 @@ func NewRootCmd() *cobra.Command {
 			"the food log, and emits per-day nutrition as JSON. It does no writing — no daily\n" +
 			"log, no sync; the consuming agent does the storing.\n\n" +
 			"  days                  parse the export and print per-day nutrition\n" +
+			"  login                 log in (email/password) and save a session token\n" +
 			"  config show|path      inspect the resolved configuration\n" +
-			"  doctor                report config + whether a token is present\n" +
+			"  doctor                report config + whether a token/credentials are present\n" +
 			"  version               build metadata (also --version)\n" +
 			"  completion <shell>    shell completion script",
 		// Runtime failures print one error line to stderr ourselves; never dump
@@ -77,6 +78,7 @@ func NewRootCmd() *cobra.Command {
 func addCommands(app *App, root *cobra.Command) {
 	root.AddCommand(
 		newDaysCmd(app),
+		newLoginCmd(app),
 		newDoctorCmd(app),
 		newConfigCmd(app),
 		newVersionCmd(app),
