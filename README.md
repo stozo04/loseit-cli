@@ -31,19 +31,24 @@ That's it — download, unzip, parse, print. No GWT-RPC, no Playwright, pure std
 go install github.com/stozo04/loseit-cli/cmd/loseit-cli@latest
 ```
 
-## Two ways to supply the export
+## Getting your data
 
-1. **Downloaded ZIP (no token — recommended for agents):**
+1. **Email + password (recommended — self-sufficient):** put your Lose It credentials in `config.json`
+   (or `LOSEIT_EMAIL` / `LOSEIT_PASSWORD`), then just:
+   ```sh
+   loseit-cli days --json          # logs in automatically when needed, fetches, parses
+   loseit-cli login                # (optional) explicit login to refresh the saved token
+   ```
+   `login` POSTs to Lose It's password-grant endpoint, saves the returned `liauth` session cookie to
+   `token_path`, and `days` reuses it until it expires (~14 days) — then re-logs in on its own. No
+   browser, no manual cookie copy, no captcha (the API doesn't require the one the web form attaches).
+2. **Downloaded ZIP (no credentials):**
    ```sh
    loseit-cli days --zip ~/Downloads/loseit-export.zip --json
    ```
-2. **Cookie fetch:** save your `liauth` cookie (loseit.com → F12 → Application → Cookies) to
-   `~/.config/loseit/token` (or set `LOSEIT_TOKEN`), then:
-   ```sh
-   loseit-cli days --json
-   ```
-   > ⏳ The `liauth` session cookie **expires with no auto-refresh**. For hands-off use, prefer the
-   > `--zip` path with a fresh download — don't chase a dead cookie.
+3. **Manual cookie:** save your `liauth` cookie (loseit.com → F12 → Application → Cookies) to
+   `~/.config/loseit/token` (or set `LOSEIT_TOKEN`), then `loseit-cli days --json`. Works until the
+   cookie expires; option 1 refreshes it for you.
 
 ## Usage
 
@@ -51,8 +56,10 @@ go install github.com/stozo04/loseit-cli/cmd/loseit-cli@latest
 loseit-cli days --zip export.zip --days 7           # human table
 loseit-cli days --zip export.zip --json --days 7     # the frozen JSON contract
 loseit-cli days --zip export.zip --date 2026-06-16 --days 1
-loseit-cli config show                               # resolved config
-loseit-cli doctor                                    # config + token presence (no network)
+loseit-cli days --json                               # login + fetch (email/password in config)
+loseit-cli login                                     # log in and save a fresh session token
+loseit-cli config show                               # resolved config (password never shown)
+loseit-cli doctor                                    # config + token/credentials presence (no network)
 loseit-cli version                                   # build metadata
 ```
 
@@ -91,12 +98,16 @@ ClawHub skill.
 ```json
 {
   "token_path": "~/.config/loseit/token",
-  "export_url": "https://www.loseit.com/export/data"
+  "export_url": "https://www.loseit.com/export/data",
+  "login_url": "https://api.loseit.com/account/login",
+  "email": "you@example.com",
+  "password": "your-loseit-password"
 }
 ```
 
-Env overrides: `LOSEIT_TOKEN` (cookie value), `LOSEIT_CONFIG`, `LOSEIT_TOKEN_PATH`,
-`LOSEIT_EXPORT_URL`.
+`email`/`password` are optional (the `--zip` and manual-cookie paths need neither) and are **gitignored**
+with `config.json` — keep them local. Env overrides: `LOSEIT_EMAIL`, `LOSEIT_PASSWORD`, `LOSEIT_TOKEN`
+(cookie value), `LOSEIT_CONFIG`, `LOSEIT_TOKEN_PATH`, `LOSEIT_EXPORT_URL`, `LOSEIT_LOGIN_URL`.
 
 ## Notes
 

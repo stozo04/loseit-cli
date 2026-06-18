@@ -3,10 +3,10 @@
 // Two paths supply the export ZIP, mirroring the Python tool:
 //
 //   - --zip PATH: read a downloaded export, no token needed.
-//   - cookie fetch: GET export_url with the liauth/fn_auth session cookies.
-//
-// The liauth cookie expires with no auto-refresh, so for hands-off/agent use the
-// reliable path is --zip with a freshly downloaded export.
+//   - cookie fetch: GET export_url with the liauth/fn_auth session cookies. When
+//     the saved cookie is missing or expired and email/password are configured,
+//     the cookie fetch logs in automatically (see login.go) and retries — so it
+//     is self-sufficient like the other collectors.
 //
 // Export ZIP layout (confirmed from the real export):
 //
@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -85,22 +86,73 @@ func LoadZipBytes(ctx context.Context, cfg *config.Config, zipPath string) ([]by
 	return FetchZip(ctx, cfg)
 }
 
-// FetchZip downloads the export ZIP using the liauth session cookie.
+// errExpired signals that the export response wasn't a valid ZIP — typically an
+// expired liauth cookie (Lose It serves an HTML login page). Auto-login can
+// recover from it, so FetchZip treats it as retryable rather than terminal.
+var errExpired = errors.New("export response was not a ZIP (token likely expired)")
+
+// FetchZip downloads the export ZIP using the liauth session cookie. It is
+// self-sufficient when email/password are configured: if no cookie is saved it
+// logs in first, and if a saved cookie is expired it logs in again and retries
+// once. With only a manually-saved cookie (no credentials) it still works until
+// that cookie expires.
 func FetchZip(ctx context.Context, cfg *config.Config) ([]byte, error) {
 	token := ReadToken(cfg)
+
+	// No saved cookie: log in if we can, otherwise explain the options.
 	if token == "" {
-		return nil, newErr(
-			"No Lose It token. Save the `liauth` cookie to %s or set %s — "+
-				"or pass --zip PATH to parse a downloaded export.",
-			cfg.TokenPath, config.EnvToken,
-		)
+		if !cfg.HasCredentials() {
+			return nil, newErr(
+				"No Lose It token or credentials. Run `loseit-cli login` (needs %s/%s or "+
+					"email/password in config.json), or pass --zip PATH to parse a downloaded export.",
+				config.EnvEmail, config.EnvPassword,
+			)
+		}
+		t, err := loginAndSave(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+		token = t
 	}
 
+	data, err := fetchWithToken(ctx, cfg, token)
+	if err == nil {
+		return data, nil
+	}
+	if !errors.Is(err, errExpired) {
+		return nil, err // hard transport/read error — not recoverable by login.
+	}
+
+	// Saved cookie was expired. Refresh via login (if we have creds) and retry once.
+	if !cfg.HasCredentials() {
+		return nil, newErr(
+			"The saved liauth token is expired and no credentials are set to refresh it. "+
+				"Run `loseit-cli login` with %s/%s (or config email/password), or use --zip PATH.",
+			config.EnvEmail, config.EnvPassword,
+		)
+	}
+	t, lerr := loginAndSave(ctx, cfg)
+	if lerr != nil {
+		return nil, lerr
+	}
+	data, err = fetchWithToken(ctx, cfg, t)
+	if err != nil {
+		if errors.Is(err, errExpired) {
+			return nil, newErr("logged in, but the export still wasn't a ZIP — Lose It may have changed its export endpoint.")
+		}
+		return nil, err
+	}
+	return data, nil
+}
+
+// fetchWithToken performs the export GET with the given liauth cookie, returning
+// the ZIP bytes or errExpired when the response isn't a valid ZIP.
+func fetchWithToken(ctx context.Context, cfg *config.Config, token string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.ExportURL, nil)
 	if err != nil {
 		return nil, newErr("building export request: %v", err)
 	}
-	// Both cookies carry the same session token, matching the Python tool.
+	// liauth and fn_auth carry the same session value; send both.
 	req.Header.Set("Cookie", fmt.Sprintf("liauth=%s; fn_auth=%s", token, token))
 	req.Header.Set("User-Agent", userAgent)
 
@@ -118,10 +170,7 @@ func FetchZip(ctx context.Context, cfg *config.Config) ([]byte, error) {
 	// A valid export is a non-trivial ZIP. An HTML login page (expired cookie)
 	// fails both checks.
 	if len(data) <= 1000 || !looksLikeZip(data) {
-		return nil, newErr(
-			"Export response wasn't a ZIP — the liauth token is probably expired. " +
-				"Re-grab it from loseit.com, or use --zip PATH with a fresh download.",
-		)
+		return nil, errExpired
 	}
 	return data, nil
 }

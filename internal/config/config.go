@@ -26,12 +26,16 @@ const (
 	EnvToken     = "LOSEIT_TOKEN" //nolint:gosec // env var name, not a secret.
 	EnvTokenPath = "LOSEIT_TOKEN_PATH"
 	EnvExportURL = "LOSEIT_EXPORT_URL"
+	EnvEmail     = "LOSEIT_EMAIL"
+	EnvPassword  = "LOSEIT_PASSWORD" //nolint:gosec // env var name, not a secret.
+	EnvLoginURL  = "LOSEIT_LOGIN_URL"
 )
 
 // Defaults.
 const (
 	DefaultTokenPath  = "~/.config/loseit/token"
 	DefaultExportURL  = "https://www.loseit.com/export/data"
+	DefaultLoginURL   = "https://api.loseit.com/account/login"
 	defaultConfigName = "config.json"
 )
 
@@ -44,12 +48,24 @@ type Config struct {
 	// ExportURL is Lose It's first-party data-export endpoint.
 	ExportURL string
 
+	// Email and Password are the Lose It account credentials used by `login` to
+	// obtain a fresh liauth cookie (mirroring speediance-cli). Optional: the
+	// --zip path and a pre-saved token both work without them.
+	Email    string
+	Password string
+	// LoginURL is Lose It's first-party password-grant login endpoint.
+	LoginURL string
+
 	// ConfigPath is where config.json was loaded from, or where it would be
 	// written if it does not yet exist.
 	ConfigPath string
 	// ConfigExists reports whether ConfigPath was present on disk at load time.
 	ConfigExists bool
 }
+
+// HasCredentials reports whether both email and password are set, so commands
+// can decide whether auto-login is possible — without exposing the values.
+func (c *Config) HasCredentials() bool { return c.Email != "" && c.Password != "" }
 
 // fileConfig mirrors config.json. Pointer fields distinguish "key present" from
 // "key absent" so an absent key falls through to the default rather than
@@ -59,6 +75,9 @@ type Config struct {
 type fileConfig struct {
 	TokenPath *string `json:"token_path"`
 	ExportURL *string `json:"export_url"`
+	Email     *string `json:"email"`
+	Password  *string `json:"password"`
+	LoginURL  *string `json:"login_url"`
 }
 
 // Options carries inputs the caller already knows from flags, so config
@@ -75,6 +94,7 @@ func Load(opts Options) (*Config, error) {
 	cfg := &Config{
 		TokenPath: DefaultTokenPath,
 		ExportURL: DefaultExportURL,
+		LoginURL:  DefaultLoginURL,
 	}
 
 	// 1. Locate and read config.json (if any).
@@ -140,6 +160,15 @@ func applyFile(cfg *Config, fc fileConfig) {
 	if fc.ExportURL != nil {
 		cfg.ExportURL = *fc.ExportURL
 	}
+	if fc.Email != nil {
+		cfg.Email = *fc.Email
+	}
+	if fc.Password != nil {
+		cfg.Password = *fc.Password
+	}
+	if fc.LoginURL != nil {
+		cfg.LoginURL = *fc.LoginURL
+	}
 }
 
 func applyEnv(cfg *Config) {
@@ -148,5 +177,14 @@ func applyEnv(cfg *Config) {
 	}
 	if v, ok := os.LookupEnv(EnvExportURL); ok {
 		cfg.ExportURL = v
+	}
+	if v, ok := os.LookupEnv(EnvEmail); ok {
+		cfg.Email = v
+	}
+	if v, ok := os.LookupEnv(EnvPassword); ok {
+		cfg.Password = v
+	}
+	if v, ok := os.LookupEnv(EnvLoginURL); ok {
+		cfg.LoginURL = v
 	}
 }
