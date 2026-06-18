@@ -1,7 +1,4 @@
 {
-  "token_path": "~/.config/loseit/token",
-  "export_url": "https://www.loseit.com/export/data",
-  "login_url": "https://api.loseit.com/account/login",
   "email": "you@example.com",
   "password": "your-loseit-password"
 }

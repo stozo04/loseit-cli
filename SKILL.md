@@ -21,7 +21,7 @@ metadata:
         - "Lose It! login endpoint (api.loseit.com/account/login, HTTPS) — exchange your email/password for a session token"
         - "Lose It! export endpoint (www.loseit.com/export/data, HTTPS) — download your own data export (read-only) using the session token"
       files.read:
-        - "config.json — settings + optional credentials (email, password, token_path, export_url, login_url), in the working directory or next to the binary"
+        - "config.json — your Lose It credentials (email, password), in the working directory or next to the binary"
         - "token file — the liauth session cookie (default ~/.config/loseit/token; overridable via LOSEIT_TOKEN_PATH)"
         - "--zip file — a downloaded Lose It export ZIP, when the --zip path is used"
       files.write:
@@ -35,21 +35,6 @@ metadata:
         required: false
       - name: LOSEIT_PASSWORD
         description: "Lose It account password — for the email/password login path. Or set it in config.json. Never printed."
-        required: false
-      - name: LOSEIT_TOKEN
-        description: "A liauth session cookie value (alternative to login). Optional — login and --zip need no pre-set token."
-        required: false
-      - name: LOSEIT_CONFIG
-        description: "Path to a config.json (alternative to discovery)."
-        required: false
-      - name: LOSEIT_TOKEN_PATH
-        description: "Override the token file path (default ~/.config/loseit/token)."
-        required: false
-      - name: LOSEIT_EXPORT_URL
-        description: "Override the export endpoint (default https://www.loseit.com/export/data)."
-        required: false
-      - name: LOSEIT_LOGIN_URL
-        description: "Override the login endpoint (default https://api.loseit.com/account/login)."
         required: false
 ---
 
@@ -79,20 +64,27 @@ go install github.com/stozo04/loseit-cli/cmd/loseit-cli@latest
 
 ## Getting your data
 
-1. **Email + password (recommended — self-sufficient):** set `LOSEIT_EMAIL`/`LOSEIT_PASSWORD` (or put
-   `email`/`password` in `config.json`), then:
-   ```bash
-   loseit-cli days --json     # logs in automatically when needed, fetches, parses
-   loseit-cli login           # (optional) explicit login to refresh the saved token
-   ```
-   No browser, no manual cookie, no captcha — the API doesn't require the one the web form attaches.
-2. **Downloaded ZIP (no credentials):** export your data from Lose It (Settings → Export), then:
-   ```bash
-   loseit-cli days --zip ~/Downloads/loseit-export.zip --json
-   ```
-3. **Manual cookie:** save your `liauth` cookie (loseit.com → F12 → Application → Cookies) to
-   `~/.config/loseit/token` (or set `LOSEIT_TOKEN`), then `loseit-cli days --json`. Works until it
-   expires; option 1 refreshes it for you.
+Provide your two Lose It credentials — **`email` and `password`** — and nothing else. Put them in
+`config.json` (`{ "email": "you@example.com", "password": "your-loseit-password" }`) or export
+`LOSEIT_EMAIL`/`LOSEIT_PASSWORD`, then:
+
+```bash
+loseit-cli days --json     # logs in automatically when needed, fetches, parses
+loseit-cli login           # (optional) explicit login to refresh the saved token
+```
+
+No browser, no manual cookie, no captcha — the API doesn't require the one the web form attaches. The
+session token is fetched, cached, and refreshed for you; email + password are the only inputs.
+
+### Advanced / fallbacks
+
+Not needed for normal use — they exist as a safety net (no credentials required):
+
+- **Downloaded ZIP:** export from Lose It (Settings → Export), then
+  `loseit-cli days --zip ~/Downloads/loseit-export.zip --json`.
+- **Manual cookie:** save a `liauth` cookie (loseit.com → F12 → Application → Cookies) to
+  `~/.config/loseit/token` (or set `LOSEIT_TOKEN`), then `loseit-cli days --json`. Works until it
+  expires; the email/password path refreshes it for you.
 
 ## Commands
 
