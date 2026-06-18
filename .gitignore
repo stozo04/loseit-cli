@@ -15,8 +15,9 @@ token
 coverage.txt
 
 # Local-only notes — personal context, kept on disk, never published.
+# (CLAUDE.md is intentionally COMMITTED: it documents auth/self-heal for the next
+# agent, including headless/cloud runs where a local-only file wouldn't exist.)
 HANDOFF.md
-CLAUDE.md
 
 # Editor/OS noise.
 .DS_Store
