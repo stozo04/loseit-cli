@@ -172,7 +172,8 @@ in so you don't refight them:**
   `workflow_dispatch`; `clawhub skill publish . --owner stozo04 --slug <slug> --name "<name>"`.
 - **`SKILL.md`** — frontmatter mirrors google-health/speediance: `name: <slug>`, an emoji (🥗 / 🍎),
   `homepage`, `primaryEnv: LOSEIT_TOKEN`, permissions (**network:** loseit.com export endpoint; **files.read:**
-  config.json / token / `--zip` file; **files.write: NONE — it writes nothing**), `requires`/`envVars`
+  config.json / token / `--zip` file; **files.write: the session-token cache only (`token_path`, 0600) —
+  it is a credential, so declare it; do not claim "writes nothing"**), `requires`/`envVars`
   (`LOSEIT_TOKEN` optional; `--zip` is the no-token path). Body: setup, the **cookie-expiry wrinkle**, command
   reference, conventions, `days --json` sample. Be honest that headless use means supplying `--zip` with a
   fresh export.
@@ -192,7 +193,14 @@ in so you don't refight them:**
 
 ## 11. Install + personal-workout-ai contract (load-bearing — the agent now stores nutrition)
 
-**A. Install the binary** to `C:\Users\gates\bin\loseit-cli.exe`. Verify
+> **Scope note (security):** Everything in §11 below describes the **consumer**
+> (`personal-workout-ai`), **not** loseit-cli. loseit-cli never touches
+> `DAILY_LOG.json`. The `DAILY_LOG.json` write happens in the consuming agent, **in
+> response to the user's own action** (Steven logging food or dropping a fresh
+> export) — it is user-initiated, not autonomous, and it only sets the day's
+> `nutrition` key, never clobbering `training` / `body` / `watch` / `final_note`.
+
+**A. Install the binary** to a directory on `PATH` (e.g. `$HOME/bin/loseit-cli`). Verify
 `loseit-cli days --zip <export.zip> --json` emits the §5 contract.
 
 **B. Update personal-workout-ai docs** (`C:\Users\gates\Personal\personal-workout-ai`). Grep for

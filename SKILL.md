@@ -6,8 +6,10 @@ description: >
   fetches your data export, and emits per-day nutrition as JSON — calories,
   protein, carbs, fat, fiber, a per-meal breakdown, and Lose It's own budget /
   under / exercise-adjustment figures. A self-contained, read-only extractor: it
-  does NO writing — no daily log, no sync — the caller decides what to do with the
-  data. Single static binary, no Python or other runtime. Auth options:
+  never changes your Lose It account and does no application writing (no daily log,
+  no sync) — the caller decides what to do with the data. The only file it writes
+  locally is its own session-token cache (a credential, mode 0600). Single static
+  binary, no Python or other runtime. Auth options:
   email/password (recommended — set LOSEIT_EMAIL/LOSEIT_PASSWORD or put them in
   config.json), a downloaded export ZIP (--zip, no credentials), or a saved liauth
   cookie.
@@ -40,14 +42,17 @@ metadata:
 
 # Lose It Nutrition — read-only nutrition extractor
 
-Read your **Lose It!** nutrition from any agent. This is a read-only extractor: it obtains the
-Lose It data export, parses the food log, and prints **per-day nutrition as JSON** — calories,
-protein, carbs, fat, fiber, a per-meal breakdown, plus Lose It's own budget/under/exercise
-figures. It does **no writing** — no daily log, no sync; you get the data and store whatever you
-care about. Single static binary — **no Python or other runtime**.
+Read your **Lose It!** nutrition from any agent. This is a read-only extractor: it never changes your
+Lose It account — it obtains the Lose It data export, parses the food log, and prints **per-day
+nutrition as JSON** — calories, protein, carbs, fat, fiber, a per-meal breakdown, plus Lose It's own
+budget/under/exercise figures. It does **no application writing** — no daily log, no sync; you get the
+data and store whatever you care about. The only file it writes locally is its own session-token cache
+(`token_path`, mode 0600). Single static binary — **no Python or other runtime**.
 
-> ⚠️ **Read-only** for your Lose It data — it reads the export and prints JSON. The only file it
-> writes is its own session-token cache (`token_path`, mode 0600).
+> ⚠️ **Read-only** for your Lose It data — it reads the export and prints JSON. It is not a no-write
+> tool, though: it caches its `liauth` **session token** (a reusable ~14-day credential) to
+> `token_path` (mode 0600), and it reads your **plaintext** email/password from `config.json`. Both
+> are secrets — see **Security & secrets** below.
 
 > 🔑 **Self-healing auth.** With your email/password configured, `login` fetches a session token and
 > `days` re-logs-in automatically when it expires (~14 days) — no manual cookie juggling. The `--zip`
@@ -128,12 +133,28 @@ A JSON object keyed by ISO date → nutrition object (empty selection → `{}`):
 them, after `meals`. Numbers are integers (banker's rounding). See **AGENTS.md** for the full
 contract and exit codes.
 
+## Security & secrets
+
+This skill handles two **sensitive** local files. Treat both as you would any password:
+
+- **`config.json`** holds your Lose It **email and password in plaintext**. It is **gitignored** —
+  never commit it, and don't place it in a shared, world-readable, or backed-up directory. On a shared
+  machine, prefer the `LOSEIT_EMAIL` / `LOSEIT_PASSWORD` environment variables over a file on disk.
+- **The session-token cache** (`token_path`, default `~/.config/loseit/token`) holds the `liauth`
+  cookie — a **reusable, ~14-day session credential**. It is written **owner-only (`0600`)** in an
+  owner-only directory (`0700`), is **gitignored**, and is never printed. Anyone who can read it can
+  pull your data until it expires, so keep it off shared disks and out of backups.
+
+Apart from that one cache file, nothing is persisted. All network traffic is HTTPS to Lose It's own
+login/export endpoints, and no secret reaches stdout, stderr, or logs at any verbosity.
+
 ## Conventions
 
 - **stdout is parseable**; human hints and logs go to **stderr**, never interleaved.
 - **Exit codes:** `0` success, `2` export/parse failure (no/expired token, bad ZIP), `64` usage
   error, `78` config error.
-- **Read-only for your data:** the tool reads the export and prints JSON; the only file it writes is
-  its session-token cache (`token_path`, 0600).
-- **Secrets:** the token file and `config.json` (which may hold your email/password) are gitignored —
-  never commit them. The password and the cookie/token value are never printed.
+- **Read-only for your data:** the tool reads the export and prints JSON and never modifies your Lose
+  It account; the only file it writes locally is its session-token cache (`token_path`, 0600).
+- **Secrets:** the token file and `config.json` (which holds your email/password in plaintext) are
+  gitignored — never commit them and keep them owner-only; on shared machines prefer env vars. The
+  password and the cookie/token value are never printed.

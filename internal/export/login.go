@@ -78,8 +78,12 @@ func loginAndSave(ctx context.Context, cfg *config.Config) (string, error) {
 }
 
 // SaveToken writes the session token to the configured token_path (creating
-// parent dirs), 0600 because it is a credential. A trailing newline matches the
-// manual "echo cookie > token" convention.
+// parent dirs at 0700), 0600 because the liauth cookie is a reusable session
+// credential. We open with 0600 AND chmod afterward: O_CREATE only applies the
+// mode when the file is new, so a pre-existing token file written with looser
+// permissions would otherwise keep them — the explicit Chmod re-tightens it to
+// owner-only. Chmod is advisory on Windows, so a failure there is not fatal. A
+// trailing newline matches the manual "echo cookie > token" convention.
 func SaveToken(cfg *config.Config, token string) error {
 	path := expandUser(cfg.TokenPath)
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
@@ -87,8 +91,17 @@ func SaveToken(cfg *config.Config, token string) error {
 			return newErr("creating token dir %s: %v", dir, err)
 		}
 	}
-	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
 		return newErr("writing token to %s: %v", path, err)
+	}
+	_ = f.Chmod(0o600) // re-tighten a pre-existing file; advisory on Windows.
+	if _, werr := f.WriteString(token + "\n"); werr != nil {
+		_ = f.Close()
+		return newErr("writing token to %s: %v", path, werr)
+	}
+	if cerr := f.Close(); cerr != nil {
+		return newErr("writing token to %s: %v", path, cerr)
 	}
 	return nil
 }

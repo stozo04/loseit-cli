@@ -1,8 +1,10 @@
 # AGENTS.md — machine contract for loseit-cli
 
 loseit-cli is a read-only Lose It! nutrition extractor. It obtains the data export (a downloaded ZIP or a
-cookie fetch), parses the food log, and emits per-day nutrition as JSON. It does **no** writing — no daily
-log, no sync, no upsert; the consuming agent does the storing. **stdout is data; stderr is hints/logs/errors.**
+cookie fetch), parses the food log, and emits per-day nutrition as JSON. It does **no application** writing —
+no daily log, no sync, no upsert; the consuming agent does the storing. The only file it writes locally is
+its session-token cache (`token_path`, mode 0600) when it logs in. It never modifies your Lose It account.
+**stdout is data; stderr is hints/logs/errors.**
 
 ## Exit codes
 

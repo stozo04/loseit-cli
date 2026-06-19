@@ -74,3 +74,4 @@ The binary heals an *expired token*. It **cannot** heal Lose It *changing the lo
 
 - `AGENTS.md` — machine contract (command shapes, JSON, exit codes, auth model).
 - `README.md` — user-facing setup. `GOAL.md` — original rewrite spec + guardrails. `RELEASING.md` — release pipeline. `SKILL.md` — ClawHub skill.
+- `.claude/CLAWHUB_STANDARDS.md` — **read before touching auth, config, file I/O, network, or docs.** The rules that keep the ClawHub security scan green (chief one: never call the tool "writes no files" — it caches a `0600` session token; always qualify "read-only" as *against your Lose It account*). Each rule is pinned by an immutable regression test.

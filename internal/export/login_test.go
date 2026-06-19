@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -107,6 +108,62 @@ func TestSaveAndReadToken(t *testing.T) {
 	}
 	if got := ReadToken(cfg); got != goodToken {
 		t.Errorf("ReadToken = %q, want %q", got, goodToken)
+	}
+}
+
+// TestSaveTokenWritesOwnerOnly pins the least-privilege guarantee: the liauth
+// session token is a reusable credential, so its file must be owner-only (0600)
+// and its created parent dir owner-only (0700). If someone loosens SaveToken (or
+// swaps back to a wider mode), this fails. Permission bits are advisory on
+// Windows — os.Stat synthesizes them — so assert them only where they are real.
+func TestSaveTokenWritesOwnerOnly(t *testing.T) {
+	t.Setenv(config.EnvToken, "")
+	path := filepath.Join(t.TempDir(), "nested", "token")
+	cfg := &config.Config{TokenPath: path}
+	if err := SaveToken(cfg, goodToken); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS == "windows" {
+		return
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fi.Mode().Perm(); got != 0o600 {
+		t.Errorf("token file mode = %#o, want 0600", got)
+	}
+	di, err := os.Stat(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := di.Mode().Perm(); got != 0o700 {
+		t.Errorf("token dir mode = %#o, want 0700", got)
+	}
+}
+
+// TestSaveTokenReTightensExistingFile pins the re-tighten behavior: re-saving
+// over a token file that already exists with loose permissions must restore 0600
+// (os.WriteFile/O_CREATE alone would not). Removing the explicit Chmod fails this.
+func TestSaveTokenReTightensExistingFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are advisory on Windows")
+	}
+	t.Setenv(config.EnvToken, "")
+	path := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(path, []byte("OLD\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{TokenPath: path}
+	if err := SaveToken(cfg, goodToken); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fi.Mode().Perm(); got != 0o600 {
+		t.Errorf("token file mode after re-save = %#o, want 0600 (re-tighten)", got)
 	}
 }
 

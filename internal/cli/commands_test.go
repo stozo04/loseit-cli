@@ -134,6 +134,70 @@ func TestDoctorWithTokenPresent(t *testing.T) {
 	}
 }
 
+// TestConfigShowNeverRevealsPassword pins that the password is never emitted by
+// `config show`, in either the human or --json form — only the password_set
+// boolean. Regressing this (e.g. adding a password field to configView, or
+// printing the value) fails the test.
+func TestConfigShowNeverRevealsPassword(t *testing.T) {
+	const secret = "super-secret-pw-DO-NOT-LEAK"
+	cfgPath := writeConfig(t, map[string]any{"email": "you@example.com", "password": secret})
+
+	stdout, _, err := run(t, "--config", cfgPath, "config", "show")
+	if err != nil {
+		t.Fatalf("config show: %v", err)
+	}
+	if strings.Contains(stdout, secret) {
+		t.Errorf("config show leaked the password:\n%s", stdout)
+	}
+
+	jstdout, _, err := run(t, "--config", cfgPath, "config", "show", "--json")
+	if err != nil {
+		t.Fatalf("config show --json: %v", err)
+	}
+	if strings.Contains(jstdout, secret) {
+		t.Errorf("config show --json leaked the password:\n%s", jstdout)
+	}
+	var view map[string]any
+	if err := json.Unmarshal([]byte(jstdout), &view); err != nil {
+		t.Fatalf("config show --json invalid: %v", err)
+	}
+	if view["password_set"] != true {
+		t.Errorf("password_set = %v, want true", view["password_set"])
+	}
+	if _, ok := view["password"]; ok {
+		t.Error("config show --json must not include a password field")
+	}
+}
+
+// TestDoctorNeverRevealsTokenOrPassword pins that doctor reports presence as
+// booleans without ever echoing the token value or password to stdout/stderr.
+func TestDoctorNeverRevealsTokenOrPassword(t *testing.T) {
+	const token = "liauth-secret-cookie-value-DO-NOT-LEAK"
+	const pw = "doctor-secret-pw-DO-NOT-LEAK"
+	t.Setenv(config.EnvToken, token)
+	cfgPath := writeConfig(t, map[string]any{"email": "you@example.com", "password": pw})
+
+	stdout, stderr, err := run(t, "--config", cfgPath, "doctor")
+	if err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+	for label, s := range map[string]string{"stdout": stdout, "stderr": stderr} {
+		if strings.Contains(s, token) {
+			t.Errorf("doctor leaked the token value on %s:\n%s", label, s)
+		}
+		if strings.Contains(s, pw) {
+			t.Errorf("doctor leaked the password on %s:\n%s", label, s)
+		}
+	}
+	var report map[string]any
+	if err := json.Unmarshal([]byte(stdout), &report); err != nil {
+		t.Fatalf("doctor JSON invalid: %v", err)
+	}
+	if report["tokenPresent"] != true || report["credentialsPresent"] != true {
+		t.Errorf("doctor presence flags = %v, want both true", report)
+	}
+}
+
 func TestCompletionBash(t *testing.T) {
 	stdout, _, err := run(t, "completion", "bash")
 	if err != nil {
