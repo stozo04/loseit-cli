@@ -37,8 +37,10 @@ func NewRootCmd() *cobra.Command {
 		Short: "Read-only Lose It! nutrition extractor (export → per-day JSON)",
 		Long: "loseit-cli is a self-contained, read-only nutrition extractor for the Lose It!\n" +
 			"data export. It obtains the export (a downloaded ZIP or a cookie fetch), parses\n" +
-			"the food log, and emits per-day nutrition as JSON. It does no writing — no daily\n" +
-			"log, no sync; the consuming agent does the storing.\n\n" +
+			"the food log, and emits per-day nutrition as JSON. It never modifies your Lose It\n" +
+			"account and does no application storage (no daily log, no sync; the consuming\n" +
+			"agent stores nutrition); the only file it writes locally is its 0600 session-token\n" +
+			"cache.\n\n" +
 			"  days                  parse the export and print per-day nutrition\n" +
 			"  login                 log in (email/password) and save a session token\n" +
 			"  config show|path      inspect the resolved configuration\n" +

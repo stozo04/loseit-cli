@@ -1,8 +1,9 @@
 // Command loseit-cli is a self-contained, read-only nutrition extractor for the
 // Lose It! data export. It obtains the export ZIP (a downloaded file or a cookie
 // fetch), parses the food log, and emits per-day nutrition as JSON. It does no
-// writing — no DAILY_LOG, no sync, no upsert; the consuming agent does the
-// storing. No Python runtime, no external helper binary.
+// application writing — no DAILY_LOG, no sync, no upsert; the consuming agent
+// does the storing. The only file it writes locally is its own session-token
+// cache (token_path, mode 0600). No Python runtime, no external helper binary.
 //
 // This entrypoint is deliberately thin: it owns the ldflags version vars (the
 // linker's -X only reaches package main), wires a cancelable context for Ctrl-C,
