@@ -10,6 +10,8 @@ You're in **loseit-cli**: a small, **read-only** Go binary whose ONE job is **au
 
 **Always run a live end-to-end test before opening a PR.** Mocks lie; Lose It's real endpoints are what matter. Build the binary, run `login` + `days --json` against the **real** API with **real** credentials, confirm real data returns. Only then push + open the PR. (`main` is PR-protected — see Guardrails.)
 
+> ⚠️ **Privacy — the live test uses real credentials and real health data.** Keep them out of anything shareable: do **not** paste config.json, the token, login requests, or the export/`days` output into commits, PRs, issues, screenshots, chat logs, or CI logs; do **not** run the live test in shared/hosted CI. Use a **local** config.json (gitignored) or env vars that you clear afterward; redact email/token/nutrition before sharing any debug output. The export ZIP and `days` JSON are personal health data — treat them as sensitive. Prefer a throwaway/test Lose It account if you can.
+
 ## AUTH — read this fully (it is the fragile part)
 
 ### The flow (verified 2026-06-18)
@@ -32,8 +34,9 @@ You're in **loseit-cli**: a small, **read-only** Go binary whose ONE job is **au
 ### Config (`internal/config/`)
 
 - `email` + `password` (or env `LOSEIT_EMAIL` / `LOSEIT_PASSWORD`) — the credentials. Live in `config.json`, which is **gitignored**. Never commit, never print.
-- `login_url` (default `https://api.loseit.com/account/login`), `export_url` (default `https://www.loseit.com/export/data`), `token_path` (default `~/.config/loseit/token`).
-- `config show` redacts the password (emits `password_set` bool only). `doctor` reports `tokenPresent` / `credentialsPresent` (no network).
+- `token_path` (default `~/.config/loseit/token`; env `LOSEIT_TOKEN_PATH`) — where the liauth cookie is cached.
+- **`login_url` / `export_url` are NOT config or env keys — by design.** They carry the credentials and session cookie, so to stop untrusted input (a hostile env var, or a `config.json` in the CWD) redirecting them to an attacker host, they're compiled-in constants only (`api.loseit.com/account/login`, `www.loseit.com/export/data`). `Login`/`fetchWithToken` also assert the URL is first-party (`*.loseit.com`, HTTPS) before sending anything. A Lose It endpoint move is a code change, not a runtime override. See `internal/config` security note + `assertFirstPartyURL` (export.go).
+- `config show` redacts the password (emits `password_set` bool only) and shows the resolved `login_url`/`export_url` constants. `doctor` reports `tokenPresent` / `credentialsPresent` (no network).
 
 ### When auth breaks — debugging playbook (the failures the binary CANNOT self-heal)
 
@@ -44,7 +47,7 @@ The binary heals an *expired token*. It **cannot** heal Lose It *changing the lo
 3. Common breakages → fixes:
    - **Captcha now enforced** → headless login is no longer possible (a CLI can't mint a reCAPTCHA token). No clean fix — fall back to `--zip` (manual export) or a manually-grabbed cookie, and document the regression loudly.
    - **Cookie renamed / new domain** → update `loginCookie` (login.go) and the `Cookie` header in `fetchWithToken` (export.go).
-   - **Endpoint moved / params changed** → update the `login_url` default (config.go) + the form fields in `Login()`.
+   - **Endpoint moved / params changed** → update the `DefaultLoginURL` / `DefaultExportURL` constant (config.go) + the form fields in `Login()`, and rebuild. (There is no runtime URL override by design — see Config above. If the new host is still under `loseit.com`, `assertFirstPartyURL` already allows it; a move off `loseit.com` also needs that allowlist updated.)
 4. Re-run the **live test** before PRing the fix.
 
 ## What it extracts today vs. the full export

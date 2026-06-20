@@ -27,14 +27,23 @@ const (
 	EnvPassword = "LOSEIT_PASSWORD" //nolint:gosec // env var name, not a secret.
 
 	// Advanced/internal overrides — not user-facing. Retained for break-glass
-	// fallbacks and tests (httptest servers point the URLs/token here); do not
-	// remove any of them.
+	// fallbacks and tests.
 	EnvConfig    = "LOSEIT_CONFIG"
 	EnvToken     = "LOSEIT_TOKEN" //nolint:gosec // env var name, not a secret.
 	EnvTokenPath = "LOSEIT_TOKEN_PATH"
-	EnvExportURL = "LOSEIT_EXPORT_URL"
-	EnvLoginURL  = "LOSEIT_LOGIN_URL"
 )
+
+// Security: there is deliberately NO environment or config override for the login
+// and export URLs (no LOSEIT_LOGIN_URL / LOSEIT_EXPORT_URL, no export_url /
+// login_url config keys). Those two requests carry the user's email/password and
+// liauth session cookie, so letting untrusted input — an attacker-influenceable
+// env var, or a config.json dropped in the working directory — repoint them would
+// be a credential/data-exfiltration vector (traffic redirected to an attacker
+// host). The endpoints are the compiled-in DefaultLoginURL / DefaultExportURL
+// constants only; a genuine Lose It endpoint move is fixed in code + a rebuild
+// (see CLAUDE.md's auth playbook), never at runtime. The export layer also
+// asserts these URLs are first-party before sending credentials (see
+// internal/export).
 
 // Defaults.
 const (
@@ -79,10 +88,13 @@ func (c *Config) HasCredentials() bool { return c.Email != "" && c.Password != "
 // decode.
 type fileConfig struct {
 	TokenPath *string `json:"token_path"`
-	ExportURL *string `json:"export_url"`
 	Email     *string `json:"email"`
 	Password  *string `json:"password"`
-	LoginURL  *string `json:"login_url"`
+	// export_url / login_url are intentionally NOT decoded here: they carry the
+	// user's credentials and session cookie, so they must not be repointable from
+	// a config file an attacker could drop in the working directory (see the
+	// security note above the env-var consts). encoding/json silently ignores
+	// those keys if a config.json still contains them.
 }
 
 // Options carries inputs the caller already knows from flags, so config
@@ -162,26 +174,18 @@ func applyFile(cfg *Config, fc fileConfig) {
 	if fc.TokenPath != nil {
 		cfg.TokenPath = *fc.TokenPath
 	}
-	if fc.ExportURL != nil {
-		cfg.ExportURL = *fc.ExportURL
-	}
 	if fc.Email != nil {
 		cfg.Email = *fc.Email
 	}
 	if fc.Password != nil {
 		cfg.Password = *fc.Password
 	}
-	if fc.LoginURL != nil {
-		cfg.LoginURL = *fc.LoginURL
-	}
+	// ExportURL / LoginURL are not file-overridable by design (see fileConfig).
 }
 
 func applyEnv(cfg *Config) {
 	if v, ok := os.LookupEnv(EnvTokenPath); ok {
 		cfg.TokenPath = v
-	}
-	if v, ok := os.LookupEnv(EnvExportURL); ok {
-		cfg.ExportURL = v
 	}
 	if v, ok := os.LookupEnv(EnvEmail); ok {
 		cfg.Email = v
@@ -189,7 +193,6 @@ func applyEnv(cfg *Config) {
 	if v, ok := os.LookupEnv(EnvPassword); ok {
 		cfg.Password = v
 	}
-	if v, ok := os.LookupEnv(EnvLoginURL); ok {
-		cfg.LoginURL = v
-	}
+	// ExportURL / LoginURL are not env-overridable by design (see the security
+	// note above the env-var consts) — they stay the compiled-in defaults.
 }

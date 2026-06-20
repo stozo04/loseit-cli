@@ -112,10 +112,12 @@ README / SKILL / the personal-workout-ai docs.
 
 - **Discovery** (mirror google-health): `--config` flag > `LOSEIT_CONFIG` env > `./config.json` >
   next-to-exe. `config.json` is **optional** (the defaults below work).
-- **Keys (drop `daily_log`):** `token_path` (default `~/.config/loseit/token`), `export_url`
-  (default `https://www.loseit.com/export/data`).
-- **Env:** `LOSEIT_TOKEN` (cookie value), `LOSEIT_CONFIG`. (Optionally `LOSEIT_EXPORT_URL`,
-  `LOSEIT_TOKEN_PATH`.)
+- **Keys (drop `daily_log`):** `token_path` (default `~/.config/loseit/token`), plus `email`/`password`.
+- **Env:** `LOSEIT_TOKEN` (cookie value), `LOSEIT_CONFIG`, `LOSEIT_TOKEN_PATH`, `LOSEIT_EMAIL`/`LOSEIT_PASSWORD`.
+- **Security (hardened after the ClawHub scan):** `export_url`/`login_url` are **not** config or env keys.
+  They carry the credentials and session cookie, so they're compiled-in constants (`DefaultExportURL`/
+  `DefaultLoginURL`) that untrusted env/config cannot repoint; the export layer also refuses to send
+  credentials to any non-`loseit.com` host. A Lose It endpoint move is a code change, not a runtime knob.
 - Update `config.example.json` to drop `daily_log`. `.gitignore`: `config.json`, `token`, `*.zip`, `/bin`,
   `/dist`, `*.exe`.
 

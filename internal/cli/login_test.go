@@ -8,10 +8,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stozo04/loseit-cli/internal/config"
 )
 
 // TestLoginCommandSavesToken runs the `login` command end-to-end against a fake
 // Lose It login endpoint and asserts the returned cookie lands in the token file.
+// The endpoint is injected via a pre-resolved config (not an env override): the
+// login/export URLs carry credentials and are deliberately not redirectable from
+// env or config.json, so tests seed the loopback test server on the App directly.
 func TestLoginCommandSavesToken(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/account/login", func(w http.ResponseWriter, _ *http.Request) {
@@ -24,13 +29,15 @@ func TestLoginCommandSavesToken(t *testing.T) {
 
 	tokenPath := filepath.Join(t.TempDir(), "token")
 	t.Setenv("LOSEIT_TOKEN", "")
-	t.Setenv("LOSEIT_LOGIN_URL", srv.URL+"/account/login")
-	t.Setenv("LOSEIT_EMAIL", "user@example.com")
-	t.Setenv("LOSEIT_PASSWORD", "pw")
-	t.Setenv("LOSEIT_TOKEN_PATH", tokenPath)
+	app := &App{cfg: &config.Config{
+		LoginURL:  srv.URL + "/account/login",
+		ExportURL: config.DefaultExportURL,
+		TokenPath: tokenPath,
+		Email:     "user@example.com",
+		Password:  "pw",
+	}}
 
-	cfgPath := writeConfig(t, map[string]any{})
-	stdout, _, err := run(t, "--config", cfgPath, "login")
+	stdout, _, err := runWithApp(t, app, "login")
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -57,13 +64,15 @@ func TestLoginCommandBadCredentialsExits2(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("LOSEIT_TOKEN", "")
-	t.Setenv("LOSEIT_LOGIN_URL", srv.URL+"/account/login")
-	t.Setenv("LOSEIT_EMAIL", "user@example.com")
-	t.Setenv("LOSEIT_PASSWORD", "wrong")
-	t.Setenv("LOSEIT_TOKEN_PATH", filepath.Join(t.TempDir(), "token"))
+	app := &App{cfg: &config.Config{
+		LoginURL:  srv.URL + "/account/login",
+		ExportURL: config.DefaultExportURL,
+		TokenPath: filepath.Join(t.TempDir(), "token"),
+		Email:     "user@example.com",
+		Password:  "wrong",
+	}}
 
-	cfgPath := writeConfig(t, map[string]any{})
-	_, _, err := run(t, "--config", cfgPath, "login")
+	_, _, err := runWithApp(t, app, "login")
 	var exit *ExitError
 	if err == nil || !errors.As(err, &exit) || exit.Code != ExitExport {
 		t.Fatalf("err = %v, want ExitError code %d", err, ExitExport)

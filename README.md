@@ -146,8 +146,14 @@ You should not need any of these for normal use — they exist as a safety net a
 
 **Environment overrides (break-glass / testing):** `LOSEIT_EMAIL` and `LOSEIT_PASSWORD` mirror the
 config keys. The rest are rarely needed — `LOSEIT_TOKEN` (a `liauth` cookie value), `LOSEIT_CONFIG`
-(config path), `LOSEIT_TOKEN_PATH` (token cache location), and `LOSEIT_EXPORT_URL` / `LOSEIT_LOGIN_URL`
-(endpoint overrides; the defaults are baked in).
+(config path), and `LOSEIT_TOKEN_PATH` (token cache location).
+
+**The login and export endpoints are not configurable — by design.** Those two requests carry your
+email/password and session cookie, so to keep them from being redirected to an attacker-controlled
+host they are **compiled-in** (`https://api.loseit.com/account/login`,
+`https://www.loseit.com/export/data`) and **cannot** be changed by an environment variable or
+`config.json`; the tool additionally refuses to send credentials to any non-`loseit.com` host. If Lose
+It ever moves an endpoint, that's a code change + new release, not a runtime override.
 
 ## Notes
 

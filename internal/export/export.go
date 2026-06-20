@@ -25,7 +25,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -148,6 +150,9 @@ func FetchZip(ctx context.Context, cfg *config.Config) ([]byte, error) {
 // fetchWithToken performs the export GET with the given liauth cookie, returning
 // the ZIP bytes or errExpired when the response isn't a valid ZIP.
 func fetchWithToken(ctx context.Context, cfg *config.Config, token string) ([]byte, error) {
+	if err := assertFirstPartyURL(cfg.ExportURL); err != nil {
+		return nil, err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.ExportURL, nil)
 	if err != nil {
 		return nil, newErr("building export request: %v", err)
@@ -240,6 +245,48 @@ func parseCSV(r io.Reader) ([]map[string]string, error) {
 // looksLikeZip reports whether data begins with the ZIP local-file signature.
 func looksLikeZip(data []byte) bool {
 	return len(data) >= 2 && data[0] == 'P' && data[1] == 'K'
+}
+
+// firstPartyHost is Lose It's own domain. The login and export requests carry the
+// user's credentials and liauth session cookie, so they may only target it.
+const firstPartyHost = "loseit.com"
+
+// assertFirstPartyURL guards every credential/cookie-bearing request: it may only
+// target Lose It's own domain over HTTPS. This is defense-in-depth — config
+// exposes no env or file override for these URLs (see internal/config), so in
+// production cfg.LoginURL / cfg.ExportURL are always the compiled-in loseit.com
+// constants and this check passes trivially. It exists so that if any future
+// change ever lets an untrusted URL reach here, the user's email/password and
+// session cookie still cannot be redirected to an attacker-controlled host.
+// Loopback over plain HTTP is allowed ONLY so the test suite can point these
+// requests at a local httptest server; production never uses a loopback endpoint.
+func assertFirstPartyURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return newErr("refusing to use a malformed endpoint URL.")
+	}
+	host := u.Hostname()
+	if isLoopbackHost(host) {
+		return nil
+	}
+	if u.Scheme != "https" {
+		return newErr("refusing to send credentials to a non-HTTPS endpoint.")
+	}
+	if host != firstPartyHost && !strings.HasSuffix(host, "."+firstPartyHost) {
+		return newErr("refusing to send credentials to a non-Lose It host (%s).", host)
+	}
+	return nil
+}
+
+// isLoopbackHost reports whether host refers to the local machine.
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
 }
 
 // expandUser expands a leading ~ to the user's home directory, like Python's

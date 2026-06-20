@@ -98,7 +98,39 @@ disallowed, or failing to protect the token cache as a credential).
   dependency on `sudo`, a shell, or an external tool, and never shell out to run a
   privileged command.
 
-## 5. No code execution / injection surfaces; network stays first-party
+## 5. The credential endpoints are fixed — untrusted input can't redirect them
+
+**Incident:** the env vars `LOSEIT_LOGIN_URL` / `LOSEIT_EXPORT_URL` (and the
+matching `login_url` / `export_url` config.json keys) let the login POST and the
+export GET be repointed at an arbitrary host. ClawHub flagged it **Medium ×2
+(Description-Behavior Mismatch + Context-Inappropriate Capability)**: those two
+requests carry the user's **email/password** and **liauth session cookie**, so an
+attacker who can influence the environment or drop a `config.json` in the working
+directory could redirect them to their own server and harvest the credentials and
+exported health data. That is broader than a "Lose It only" extractor should be.
+
+**Rules:**
+
+- **The login/export URLs are compiled-in constants** (`DefaultLoginURL` /
+  `DefaultExportURL`) and have **no env or config override** — there is no
+  `LOSEIT_LOGIN_URL`/`LOSEIT_EXPORT_URL`, and `fileConfig` deliberately does not
+  decode `login_url`/`export_url`. A Lose It endpoint move is a **code change +
+  rebuild**, never a runtime knob. (CLAUDE.md's auth playbook already assumes this.)
+- **Defense in depth:** before sending anything, `Login` and `fetchWithToken` call
+  `assertFirstPartyURL` — credentials/cookies may only go to `*.loseit.com` over
+  HTTPS (loopback is allowed *only* so tests can use an httptest server). If a
+  future change ever lets an untrusted URL reach there, credentials still can't be
+  exfiltrated off-domain.
+- **Tests never redirect via env/config.** Production endpoints can't be changed by
+  untrusted input, so tests inject a loopback URL through a pre-resolved
+  `config.Config` (the `newRootCmd(app)` seam in `cli`, or a direct struct in
+  `export`) — never by setting `LOSEIT_*_URL`.
+- Pinned by `internal/config/config_test.go::TestURLEndpointsAreNotOverridableByUntrustedInput`
+  + `TestDefaultEndpointsAreFirstPartyHTTPS`, and
+  `internal/export/login_test.go::TestLoginRefusesNonFirstPartyURL` +
+  `TestFetchZipRefusesNonFirstPartyURL`.
+
+## 5a. No code execution / injection surfaces
 
 - Don't pass user / config / env values into `exec.Command`, a shell, `eval`-like
   APIs, or template-to-code paths. We have **no `os/exec` usage** today — keep it
@@ -106,11 +138,21 @@ disallowed, or failing to protect the token cache as a credential).
 - Treat the export ZIP and any fetched API data as **untrusted input**: validate,
   don't execute. CSV parsing tolerates ragged rows; it never interprets cell
   contents as code.
-- All outbound calls are **HTTPS to the documented Lose It hosts**
-  (`api.loseit.com/account/login`, `www.loseit.com/export/data`). The
-  `LOSEIT_LOGIN_URL` / `LOSEIT_EXPORT_URL` overrides exist only for tests
-  (httptest servers) and break-glass; they are not a feature to point at arbitrary
-  hosts, and the defaults are baked in.
+
+## 5b. Testing with real credentials is a privacy hazard — warn and contain it
+
+CLAUDE.md's "one hard rule" requires a **live** end-to-end test with **real**
+credentials and **real** health data. That is necessary (mocks miss Lose It auth
+changes) but risky, so the instruction must always carry the privacy guard:
+
+- Never paste `config.json`, the token, a login request, or the export / `days`
+  output into commits, PRs, issues, screenshots, chat, or **CI logs**; never run
+  the live test in shared/hosted CI.
+- Use a **local, gitignored** config.json or env vars cleared afterward; redact
+  email / token / nutrition before sharing any debug output. Prefer a throwaway
+  Lose It account where possible.
+- The export ZIP and `days` JSON are personal health data — treat them as secrets
+  (§2–§3 apply to them too).
 
 ## 6. The write path lives in the consumer — keep it that way
 
@@ -169,6 +211,11 @@ Run before merging anything that touches config, auth, file I/O, network, docs, 
       `config show`; `doctor` echoes no token/password.
 - [ ] `SKILL.md` permissions/env/network block matches the code exactly — and the
       `files.write` entry declares the token cache.
+- [ ] Login/export URLs stay compiled-in: no `LOSEIT_*_URL` env, no
+      `login_url`/`export_url` config key, no flag — and `assertFirstPartyURL` still
+      guards both requests. Tests inject loopback via a pre-built config, never env.
+- [ ] Any instruction to test with real credentials carries the privacy warning
+      (no real secrets/health data in commits, PRs, logs, screenshots, or CI).
 - [ ] No new `os/exec`, shell-out, or non-HTTPS / user-supplied network target; no
       write path (DAILY_LOG / sync / upsert) added to this repo.
 - [ ] No machine-specific paths (home dirs, usernames, drive letters) in code,
@@ -196,6 +243,14 @@ Current set:
   - `TestUserDocsDoNotMisrepresentLocalWrites` — README + SKILL never carry the
     banned "writes no files" phrasings, always disclose the token cache, and keep a
     `Security & secrets` section.
+- `internal/config/config_test.go`
+  - `TestURLEndpointsAreNotOverridableByUntrustedInput` — a hostile env var and a
+    hostile `config.json` both fail to repoint the login/export URLs.
+  - `TestDefaultEndpointsAreFirstPartyHTTPS` — the compiled-in endpoints are HTTPS
+    and within `loseit.com`.
+- `internal/export/login_test.go`
+  - `TestLoginRefusesNonFirstPartyURL` / `TestFetchZipRefusesNonFirstPartyURL` —
+    `assertFirstPartyURL` blocks sending credentials/cookies off-domain.
 
 When you add a safeguard, add the matching test in the **same PR**. Name it so the
 guarantee is obvious, and assert the **negative** (the bad thing does NOT happen),
@@ -210,20 +265,20 @@ touch that surface:
 | Category | Sub-checks | Where we stay clean |
 |---|---|---|
 | **MCP Tool Poisoning** | Hidden Instructions, Unicode Deception, Parameter Description Injection | §1 — honest, consistent descriptions; no hidden directives in SKILL. |
-| **Intent-Code Divergence** | (read-only vs. token write) | §1 — qualify "read-only"; disclose the token cache. |
-| **Missing User Warnings** | (plaintext secrets, autonomous writes) | §1–§2, §6 — `Security & secrets` section; consumer write path is user-initiated. |
-| **Data Exfiltration** | External Transmission, Env Harvesting, File Enumeration | §3, §5 — HTTPS to Lose It only; read only the documented files; no secret in output. |
+| **Intent-Code Divergence** | (read-only vs. token write; declared vs. real behavior) | §1, §5 — qualify "read-only"; disclose the token cache; endpoints are fixed, not redirectable. |
+| **Missing User Warnings** | (plaintext secrets, autonomous writes, real-cred testing) | §1–§2, §5b, §6 — `Security & secrets` section; consumer write path is user-initiated; live-test privacy warning. |
+| **Data Exfiltration** | External Transmission, Env Harvesting, File Enumeration | §3, §5 — credentials/cookies go only to `*.loseit.com` (fixed endpoints + `assertFirstPartyURL`); read only documented files; no secret in output. |
 | **Prompt Injection** | Instruction Override, Hidden Instructions, Exfiltration Commands | No instruction-bearing content in code/docs; export data is parsed, never executed. |
 | **Privilege Escalation** | Excessive Permissions, Sudo/Root, Credential Access | §2, §4 — `0600`/`0700`, no `sudo`/shell, minimal credential reads. |
 | **Supply Chain** | Unpinned Deps, External Script Fetching, Obfuscated Code | Pure stdlib + cobra; `go.mod` pinned; `goreleaser` builds; no fetched scripts. |
-| **Excessive Agency** | Unrestricted Tool Access, Autonomous Decisions, Scope Creep | §6 — dumb extractor; no write path; new domains ship as separate PRs. |
+| **Excessive Agency** | Unrestricted Tool Access, Autonomous Decisions, Scope Creep | §5–§6 — dumb extractor; no write path; endpoints can't be repointed; new domains ship as separate PRs. |
 | **Output Handling** | Unvalidated Output Injection, Cross-Context, Unbounded | stdout is bounded JSON/table; stderr separate; no secret crosses either. |
 | **System Prompt Leakage** | Direct/Indirect/Tool-Based | No system prompt embedded; nothing to leak. |
 | **Memory Poisoning** | Persistent Context Injection, Context Stuffing | No persisted agent memory in this repo. |
-| **Tool Misuse** | Parameter Abuse, Chaining Abuse, Unsafe Defaults | §4–§5 — narrow flags, HTTPS defaults, no arbitrary URLs/files. |
+| **Tool Misuse** | Parameter Abuse, Chaining Abuse, Unsafe Defaults | §4–§5 — narrow flags, fixed first-party endpoints, no arbitrary URLs/files. |
 | **Rogue Agent** | Self-Modification, Session Persistence | Token cache is the only persistence — declared, `0600`, expiring (§1–§2). |
 | **Trigger Abuse** | Overly Broad / Shadow / Keyword-Baiting Triggers | SKILL `description` matches behavior; no bait keywords. |
-| **Behavioral AST** | `exec()` / `eval()` / Dynamic Import | None — no `os/exec`, no dynamic code (§5). |
+| **Behavioral AST** | `exec()` / `eval()` / Dynamic Import | None — no `os/exec`, no dynamic code (§5a). |
 | **Taint Tracking** | Direct / Variable-Mediated Taint, Credential Exfil Chain | Credentials flow only into the login POST; never into output or a sink (§3). |
 | **YARA Signatures** | Malware / Webshell / Cryptominer | N/A — single-purpose extractor. |
 | **MCP Least Privilege** | Underdeclared Capability, Wildcard Permission, Missing Declaration | §4 — permissions block matches code; token write declared, no wildcards. |

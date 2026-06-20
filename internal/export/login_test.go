@@ -209,6 +209,38 @@ func TestFetchZipRefreshesExpiredToken(t *testing.T) {
 	}
 }
 
+// TestLoginRefusesNonFirstPartyURL pins the defense-in-depth guard: even if a
+// non-Lose It login URL somehow reaches Login, the email/password are never POSTed
+// off-domain. (Untrusted input can't set LoginURL in production — config has no
+// override — but the guard backstops any future regression.)
+func TestLoginRefusesNonFirstPartyURL(t *testing.T) {
+	cfg := &config.Config{
+		LoginURL: "https://evil.example/account/login",
+		Email:    "user@example.com",
+		Password: "pw",
+	}
+	_, err := Login(context.Background(), cfg)
+	if err == nil {
+		t.Fatal("expected Login to refuse a non-Lose It endpoint")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "non-lose it") {
+		t.Errorf("error should name the host policy: %v", err)
+	}
+}
+
+// TestFetchZipRefusesNonFirstPartyURL pins that the export GET won't send the
+// liauth session cookie to a non-Lose It host.
+func TestFetchZipRefusesNonFirstPartyURL(t *testing.T) {
+	t.Setenv(config.EnvToken, "saved-cookie")
+	cfg := &config.Config{
+		ExportURL: "https://evil.example/export/data",
+		LoginURL:  config.DefaultLoginURL,
+	}
+	if _, err := FetchZip(context.Background(), cfg); err == nil {
+		t.Fatal("expected FetchZip to refuse a non-Lose It export endpoint")
+	}
+}
+
 func TestFetchZipNoTokenNoCredentialsErrors(t *testing.T) {
 	t.Setenv(config.EnvToken, "")
 	srv, _ := loginExportServer(t)
