@@ -1,0 +1,69 @@
+name: Deploy to ClawHub (from branch)
+
+# Manual, branch-aware ClawHub publish.
+#
+# The other workflow ("Publish to ClawHub") fires automatically when SKILL.md
+# lands on main — that's the production publish. THIS one is triggered by hand
+# from the Actions tab so you can re-run ClawHub's security scan against a PR /
+# feature branch WITHOUT merging to main: open Actions → "Deploy to ClawHub (from
+# branch)" → Run workflow → pick the branch in the dropdown.
+#
+# Note: the "Run workflow" button only appears once this file is on the default
+# branch (main). To deploy a branch, that branch must also contain this file
+# (branches cut from main after it merges do; for an older branch, merge main in
+# first). The run publishes the SKILL.md of whichever branch you select.
+on:
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: >-
+          ClawHub slug to publish to. Keep `loseit` to re-scan the real listing,
+          or use a scratch slug (e.g. loseit-dev) to test the scan WITHOUT
+          overwriting the live skill.
+        required: true
+        default: loseit
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      # No `ref:` — checkout defaults to github.ref, i.e. the branch chosen in the
+      # Run workflow dropdown, so we publish THAT branch's SKILL.md.
+      - uses: actions/checkout@v6
+
+      - name: Summarize what will be published
+        # Values pass through env, never interpolated straight into the script, so
+        # a branch name or slug can't inject shell.
+        env:
+          REF: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          SLUG: ${{ inputs.slug }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          {
+            echo "### Deploy to ClawHub (manual)"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Branch / ref | \`$REF\` |"
+            echo "| Commit | \`$SHA\` |"
+            echo "| Slug | \`$SLUG\` |"
+            echo "| Triggered by | @$ACTOR |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install clawhub CLI
+        run: npm install -g clawhub
+
+      - name: Authenticate clawhub
+        run: clawhub login --token "$CLAWHUB_TOKEN"
+        env:
+          # Same per-repo secret the auto-publish workflow uses.
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN_LOSEIT }}
+
+      - name: Publish skill
+        run: clawhub skill publish . --owner stozo04 --slug "$SLUG" --name "Lose It Nutrition"
+        env:
+          SLUG: ${{ inputs.slug }}
