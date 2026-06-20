@@ -154,16 +154,37 @@ changes) but risky, so the instruction must always carry the privacy guard:
 - The export ZIP and `days` JSON are personal health data — treat them as secrets
   (§2–§3 apply to them too).
 
-## 6. The write path lives in the consumer — keep it that way
+## 6. Nutrition-only scope + the write path lives in the consumer
 
-- loseit-cli is the **dumb extractor**: get the data out, intact, to stdout. It has
-  **no** knowledge of `DAILY_LOG.json`, no `sync`, no upsert. The nutrition-storage
-  procedure (GOAL.md §11) belongs to **personal-workout-ai**, runs **in response to
-  the user's own action**, and only sets the day's `nutrition` key. Never port a
-  write path back into this repo.
-- If a future feature surfaces more of the export (weights, exercise, steps…),
-  keep it **read → stdout**; do not add a store/upsert. Surface it in a *separate*
-  PR so the auth surface stays clean.
+**Incident:** a dev-doc section described the export ZIP's *other* contents
+(bodyweight, exercise, steps, profile, notes, photos…) and framed surfacing them as
+"the natural next step" under an "extract-all" philosophy. ClawHub flagged it
+**Medium / Description-Behavior Mismatch**: a skill advertised as a *nutrition*
+reader that frames broad collection of sensitive personal data as the plan is a
+scope-expansion + privacy risk to any integrating agent.
+
+**Rules:**
+
+- **Read only the two nutrition CSVs** (`food-logs.csv`, `daily-calorie-summary.csv`)
+  and emit only nutrition. The rest of the export ZIP is **deliberately ignored** —
+  never parsed, stored, transmitted, or emitted. That is **data minimization**, not
+  a gap to fill. Say it that way in the docs.
+- **Never frame scope expansion as a goal / roadmap / "natural next step."** If a
+  real need arises, it is a **separate, security-reviewed PR** adding an
+  **explicit, opt-in, off-by-default** command for that *one* domain, with the
+  `SKILL.md` permissions updated to declare it — so advertised scope always equals
+  actual behavior. Pinned by
+  `internal/cli/docs_security_test.go::TestDevDocsDoNotFrameScopeExpansion`.
+- loseit-cli is the **dumb extractor**: get the *nutrition* data out, intact, to
+  stdout. It has **no** knowledge of `DAILY_LOG.json`, no `sync`, no upsert. The
+  nutrition-storage procedure belongs to the **consumer** (personal-workout-ai),
+  runs **in response to the user's own action**, and only sets the day's
+  `nutrition` key. Never port a write path back into this repo.
+- **Keep auth docs in sync with the shipped self-healing model.** The tool *has* a
+  `login` command and *auto-refreshes* an expired `liauth` cookie via
+  email/password. No doc may claim "no login command" or "no auto-refresh" — that
+  stale framing (from the original spec, now deleted) was a High Intent-Code
+  Divergence finding.
 
 ## 7. Comments and naming around security code
 
@@ -191,9 +212,8 @@ directories, no usernames, no drive letters (e.g. `C:\Users\NAME\…`,
 - Tests write only under `t.TempDir()`.
 - Examples/sample configs use neutral placeholders — `you@example.com`,
   `~/Downloads/loseit-export.zip` — never a real local path or username.
-- `CLAUDE.md` and `GOAL.md` predate this rule and still contain a few owner-local
-  paths; when you touch a line, generalize it. Don't bake new machine-specific
-  paths in.
+- `CLAUDE.md` predates this rule and still contains a few owner-local paths; when
+  you touch a line, generalize it. Don't bake new machine-specific paths in.
 
 ---
 
@@ -243,6 +263,9 @@ Current set:
   - `TestUserDocsDoNotMisrepresentLocalWrites` — README + SKILL never carry the
     banned "writes no files" phrasings, always disclose the token cache, and keep a
     `Security & secrets` section.
+  - `TestDevDocsDoNotFrameScopeExpansion` — CLAUDE.md never frames collecting the
+    rest of the export as a goal / "natural next step"; keeps the data-minimization
+    framing.
 - `internal/config/config_test.go`
   - `TestURLEndpointsAreNotOverridableByUntrustedInput` — a hostile env var and a
     hostile `config.json` both fail to repoint the login/export URLs.

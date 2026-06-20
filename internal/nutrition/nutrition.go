@@ -1,7 +1,7 @@
 // Package nutrition aggregates Lose It! food-log rows into per-day nutrition
 // objects, porting loseit/nutrition.py byte-for-byte where it matters.
 //
-// The emitted shape (frozen — see GOAL.md §5):
+// The emitted shape (frozen — see AGENTS.md, "days --json shape"):
 //
 //	{ source, calories_food, protein_g, carbs_g, fat_g, fiber_g, meals,
 //	  loseit_budget, loseit_under, exercise_adjustment }
@@ -52,7 +52,7 @@ type Meal struct {
 	Items    []Item `json:"items"`
 }
 
-// Nutrition is one day's aggregate. Key order frozen (GOAL.md §5). The three
+// Nutrition is one day's aggregate. Key order frozen (see AGENTS.md). The three
 // summary pointers are nil (omitted) unless the daily summary supplies them, so
 // a legitimate zero (e.g. loseit_under == 0) is still emitted while an absent
 // field disappears entirely.

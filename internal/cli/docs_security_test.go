@@ -65,3 +65,25 @@ func TestUserDocsDoNotMisrepresentLocalWrites(t *testing.T) {
 		}
 	}
 }
+
+// TestDevDocsDoNotFrameScopeExpansion guards the ClawHub "Description-Behavior
+// Mismatch" finding (see .claude/CLAWHUB_STANDARDS.md §6): loseit-cli reads only
+// the two nutrition CSVs, so its docs must not frame collecting the rest of the
+// export (bodyweight, profile, photos, …) as a goal or "natural next step". The
+// nutrition-only / data-minimization framing must stay.
+func TestDevDocsDoNotFrameScopeExpansion(t *testing.T) {
+	root := repoRoot(t)
+	b, err := os.ReadFile(filepath.Join(root, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("read CLAUDE.md: %v", err)
+	}
+	lower := strings.ToLower(string(b))
+	for _, banned := range []string{"natural next step", "extract-all"} {
+		if strings.Contains(lower, banned) {
+			t.Errorf("CLAUDE.md frames scope expansion (%q) — the tool is nutrition-only by design", banned)
+		}
+	}
+	if !strings.Contains(lower, "data minimization") {
+		t.Error("CLAUDE.md must keep the nutrition-only / data-minimization framing")
+	}
+}
