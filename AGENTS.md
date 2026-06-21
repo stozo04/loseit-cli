@@ -137,3 +137,7 @@ when neither is available. Never reveals the cookie or password. Key order:
 - Manual cookie: put a `liauth` value in `LOSEIT_TOKEN` or the `token_path` file. The cookie fetch sends
   `Cookie: liauth=<t>; fn_auth=<t>`. The cookie expires (~14 days); with credentials set, `days` re-logs-in
   automatically — without them it fails (exit `2`) and you re-supply a cookie or use `--zip`.
+- **Fixed endpoints:** `login_url`/`export_url` are compiled-in constants — **not** settable via env or
+  `config.json`. Those requests carry the email/password and session cookie, so the tool refuses to send
+  them anywhere but Lose It's own domain (`*.loseit.com`, HTTPS); this prevents credential/data
+  redirection to an attacker host. `config show` displays the resolved (constant) values for reference.

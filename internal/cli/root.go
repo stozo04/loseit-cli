@@ -30,8 +30,15 @@ type App struct {
 // NewRootCmd builds the root command and registers every subcommand. A fresh
 // App and command tree per call keeps tests isolated from sticky global flags.
 func NewRootCmd() *cobra.Command {
-	app := &App{}
+	return newRootCmd(&App{})
+}
 
+// newRootCmd builds the command tree around the given App. Tests use it to inject
+// a pre-resolved config (e.g. one pointing at a local httptest server) so they can
+// exercise the command wiring without the production login/export endpoints being
+// overridable from the environment or a config file — those endpoints carry
+// credentials and are deliberately not redirectable by untrusted input.
+func newRootCmd(app *App) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "loseit-cli",
 		Short: "Read-only Lose It! nutrition extractor (export → per-day JSON)",

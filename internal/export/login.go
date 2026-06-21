@@ -29,6 +29,10 @@ func Login(ctx context.Context, cfg *config.Config) (string, error) {
 			config.EnvEmail, config.EnvPassword,
 		)
 	}
+	// Never POST the email/password to anything but Lose It's own domain.
+	if err := assertFirstPartyURL(cfg.LoginURL); err != nil {
+		return "", err
+	}
 
 	form := url.Values{
 		"username":   {cfg.Email},

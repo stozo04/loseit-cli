@@ -1,14 +1,16 @@
 # CLAUDE.md — loseit-cli (start here)
 
-You're in **loseit-cli**: a small, **read-only** Go binary whose ONE job is **authenticate to Lose It! and extract the user's data**, emitting JSON on stdout. It does **no** storing, no business logic, no opinions about what the data means. The **consumer** — the `personal-workout-ai` project — deciphers the output and keeps only what it needs.
+You're in **loseit-cli**: a small, **read-only** Go binary whose ONE job is **authenticate to Lose It! and extract the user's *nutrition* data**, emitting per-day nutrition JSON on stdout. It does **no** storing, no business logic, no opinions about what the data means. The **consumer** — the `personal-workout-ai` project — deciphers the nutrition output and keeps only what it needs.
 
-**Design rule: stay dumb.** One job: get the data out, intact. If you're tempted to add logic about *what the data means* or *where it should go*, that belongs in the consumer, not here.
+**Design rule: stay dumb.** One job: get the *nutrition* data out, intact, without interpreting it. "Dumb" means **no business logic** — it does **not** mean "grab everything." The tool reads only the two nutrition CSVs and emits nutrition; it is not a general-purpose exporter (see "What it extracts" below). If you're tempted to add logic about *what the data means* or *where it should go*, that belongs in the consumer, not here.
 
 **Runtime has no Claude.** The binary runs unattended — an agent or a cron invokes it, and Claude is NOT present. So anything that must happen at runtime — above all, recovering from an expired token — must live in the **Go code**, not in a Claude session. Claude is here only during a Claude Code session (like now) to build/fix/document. This file exists so the *next* session boots with full context.
 
 ## The one hard rule for changes
 
 **Always run a live end-to-end test before opening a PR.** Mocks lie; Lose It's real endpoints are what matter. Build the binary, run `login` + `days --json` against the **real** API with **real** credentials, confirm real data returns. Only then push + open the PR. (`main` is PR-protected — see Guardrails.)
+
+> ⚠️ **Privacy — the live test uses real credentials and real health data.** Keep them out of anything shareable: do **not** paste config.json, the token, login requests, or the export/`days` output into commits, PRs, issues, screenshots, chat logs, or CI logs; do **not** run the live test in shared/hosted CI. Use a **local** config.json (gitignored) or env vars that you clear afterward; redact email/token/nutrition before sharing any debug output. The export ZIP and `days` JSON are personal health data — treat them as sensitive. Prefer a throwaway/test Lose It account if you can.
 
 ## AUTH — read this fully (it is the fragile part)
 
@@ -32,8 +34,9 @@ You're in **loseit-cli**: a small, **read-only** Go binary whose ONE job is **au
 ### Config (`internal/config/`)
 
 - `email` + `password` (or env `LOSEIT_EMAIL` / `LOSEIT_PASSWORD`) — the credentials. Live in `config.json`, which is **gitignored**. Never commit, never print.
-- `login_url` (default `https://api.loseit.com/account/login`), `export_url` (default `https://www.loseit.com/export/data`), `token_path` (default `~/.config/loseit/token`).
-- `config show` redacts the password (emits `password_set` bool only). `doctor` reports `tokenPresent` / `credentialsPresent` (no network).
+- `token_path` (default `~/.config/loseit/token`; env `LOSEIT_TOKEN_PATH`) — where the liauth cookie is cached.
+- **`login_url` / `export_url` are NOT config or env keys — by design.** They carry the credentials and session cookie, so to stop untrusted input (a hostile env var, or a `config.json` in the CWD) redirecting them to an attacker host, they're compiled-in constants only (`api.loseit.com/account/login`, `www.loseit.com/export/data`). `Login`/`fetchWithToken` also assert the URL is first-party (`*.loseit.com`, HTTPS) before sending anything. A Lose It endpoint move is a code change, not a runtime override. See `internal/config` security note + `assertFirstPartyURL` (export.go).
+- `config show` redacts the password (emits `password_set` bool only) and shows the resolved `login_url`/`export_url` constants. `doctor` reports `tokenPresent` / `credentialsPresent` (no network).
 
 ### When auth breaks — debugging playbook (the failures the binary CANNOT self-heal)
 
@@ -44,12 +47,16 @@ The binary heals an *expired token*. It **cannot** heal Lose It *changing the lo
 3. Common breakages → fixes:
    - **Captcha now enforced** → headless login is no longer possible (a CLI can't mint a reCAPTCHA token). No clean fix — fall back to `--zip` (manual export) or a manually-grabbed cookie, and document the regression loudly.
    - **Cookie renamed / new domain** → update `loginCookie` (login.go) and the `Cookie` header in `fetchWithToken` (export.go).
-   - **Endpoint moved / params changed** → update the `login_url` default (config.go) + the form fields in `Login()`.
+   - **Endpoint moved / params changed** → update the `DefaultLoginURL` / `DefaultExportURL` constant (config.go) + the form fields in `Login()`, and rebuild. (There is no runtime URL override by design — see Config above. If the new host is still under `loseit.com`, `assertFirstPartyURL` already allows it; a move off `loseit.com` also needs that allowlist updated.)
 4. Re-run the **live test** before PRing the fix.
 
-## What it extracts today vs. the full export
+## What it extracts — nutrition only (data minimization, by design)
 
-`days` surfaces **nutrition only** — from `food-logs.csv` + `daily-calorie-summary.csv`. But the export ZIP contains far more: `weights.csv` (bodyweight), `exercise-logs.csv`, `steps.csv`, `fasting-logs.csv`, `profile.csv`, per-nutrient series (`protein.csv`/`fat.csv`/`carbohydrates.csv`/`daily-values.csv`), `notes.csv`, `recipes.csv`, custom foods/exercises, and food/progress photos. Per the **extract-all, consumer-deciphers** design, surfacing more of these (e.g. a generic dump, or per-domain commands) is the natural next step — keep it a *separate* PR so auth stays clean.
+`days` reads exactly **two** members of the export ZIP — `food-logs.csv` and `daily-calorie-summary.csv` — and emits per-day **nutrition** to stdout. **Nothing else in the ZIP is parsed, stored, transmitted, or emitted.**
+
+Lose It's export ZIP also contains other personal data (bodyweight, exercise, steps, profile, notes, photos, etc.). loseit-cli **deliberately ignores all of it.** It is a *nutrition* reader, and reading only the minimum it needs is a privacy choice — not a limitation to "fix." The unparsed members exist only inside the downloaded ZIP held in memory and are discarded when the process exits; they never reach stdout or disk.
+
+Surfacing any other domain is **out of scope by default.** Adding one would require a **separate, security-reviewed PR** that introduces an **explicit, opt-in** command for that single domain, updates the `SKILL.md` permissions to declare it, and is **never on by default** — so the tool's advertised scope and its actual behavior always match. Until then, treat anything beyond the two nutrition CSVs as out of scope.
 
 ## Code map
 
@@ -67,11 +74,11 @@ The binary heals an *expired token*. It **cannot** heal Lose It *changing the lo
 
 ## Guardrails
 
-- `main` is **PR-protected**. **Never push to main, merge, tag, or release without the owner's explicit OK** (GOAL.md §13). Work on a branch and open a PR he merges.
+- `main` is **PR-protected**. **Never push to main, merge, tag, or release without the owner's explicit OK.** Work on a branch and open a PR he merges.
 - Never commit `config.json`, the token file, or `*.zip` exports. Never print the `liauth` cookie or the password.
 
 ## Pointers
 
 - `AGENTS.md` — machine contract (command shapes, JSON, exit codes, auth model).
-- `README.md` — user-facing setup. `GOAL.md` — original rewrite spec + guardrails. `RELEASING.md` — release pipeline. `SKILL.md` — ClawHub skill.
+- `README.md` — user-facing setup. `RELEASING.md` — release pipeline. `SKILL.md` — ClawHub skill.
 - `.claude/CLAWHUB_STANDARDS.md` — **read before touching auth, config, file I/O, network, or docs.** The rules that keep the ClawHub security scan green (chief one: never call the tool "writes no files" — it caches a `0600` session token; always qualify "read-only" as *against your Lose It account*). Each rule is pinned by an immutable regression test.

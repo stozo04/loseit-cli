@@ -23,6 +23,21 @@ func run(t *testing.T, args ...string) (stdout, stderr string, err error) {
 	return out.String(), errBuf.String(), err
 }
 
+// runWithApp executes the root command around a caller-built App. Tests that need
+// to point a credential-bearing endpoint at a local httptest server seed
+// app.cfg directly (the login/export URLs are intentionally not overridable from
+// env or config.json — see internal/config).
+func runWithApp(t *testing.T, app *App, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
+	root := newRootCmd(app)
+	var out, errBuf bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errBuf)
+	root.SetArgs(args)
+	err = root.Execute()
+	return out.String(), errBuf.String(), err
+}
+
 // writeConfig writes a config.json into a temp dir and returns its path.
 func writeConfig(t *testing.T, cfg map[string]any) string {
 	t.Helper()
