@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -85,5 +86,33 @@ func TestDevDocsDoNotFrameScopeExpansion(t *testing.T) {
 	}
 	if !strings.Contains(lower, "data minimization") {
 		t.Error("CLAUDE.md must keep the nutrition-only / data-minimization framing")
+	}
+}
+
+// TestDocsCarryNoSecretShapedLiterals guards the ClawHub
+// "suspicious.exposed_secret_literal" finding (Critical, 2026-07-06, CLAUDE.md's
+// auth-flow line; see .claude/CLAWHUB_STANDARDS.md §3a): a credential key
+// written as an assignment — even with an obvious placeholder value — is
+// indistinguishable from a hardcoded secret to a heuristic scanner, and the
+// shape invites a reader to paste a real value into a doc. Tracked docs must
+// describe credential-bearing fields in prose, never as key=value literals.
+func TestDocsCarryNoSecretShapedLiterals(t *testing.T) {
+	root := repoRoot(t)
+	// A credential-ish key immediately followed by '='. The \b keeps env-var
+	// assignments like LOSEIT_PASSWORD legal ('_' is a word character, so there
+	// is no boundary before the key) — the ban is on the bare credential keys.
+	re := regexp.MustCompile(`(?i)\b(password|username|liauth|fn_auth|token)=`)
+
+	for _, name := range []string{"CLAUDE.md", "README.md", "SKILL.md", "AGENTS.md"} {
+		b, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		for i, line := range strings.Split(string(b), "\n") {
+			if m := re.FindString(line); m != "" {
+				t.Errorf("%s:%d contains the secret-shaped literal %q — describe the field in prose instead (CLAWHUB_STANDARDS §3a)",
+					name, i+1, m)
+			}
+		}
 	}
 }

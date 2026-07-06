@@ -135,7 +135,7 @@ when neither is available. Never reveals the cookie or password. Key order:
   `token_path`. `days` auto-refreshes on expiry — fully self-sufficient, no captcha.
 - `--zip PATH` reads a downloaded export — **no token, no credentials**.
 - Manual cookie: put a `liauth` value in `LOSEIT_TOKEN` or the `token_path` file. The cookie fetch sends
-  `Cookie: liauth=<t>; fn_auth=<t>`. The cookie expires (~14 days); with credentials set, `days` re-logs-in
+  the `liauth` and `fn_auth` cookies, both set to the same session token. The cookie expires (~14 days); with credentials set, `days` re-logs-in
   automatically — without them it fails (exit `2`) and you re-supply a cookie or use `--zip`.
 - **Fixed endpoints:** `login_url`/`export_url` are compiled-in constants — **not** settable via env or
   `config.json`. Those requests carry the email/password and session cookie, so the tool refuses to send

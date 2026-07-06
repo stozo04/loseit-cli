@@ -84,6 +84,29 @@ disallowed, or failing to protect the token cache as a credential).
 - Pinned by `internal/cli/commands_test.go::TestConfigShowNeverRevealsPassword`
   and `TestDoctorNeverRevealsTokenOrPassword`.
 
+## 3a. No secret-shaped literals in docs — even placeholders
+
+**Incident (2026-07-06):** a ClawHub deploy flagged **Critical /
+`suspicious.exposed_secret_literal`** on CLAUDE.md's auth-flow line, which spelled
+out the login form body as a single key=value string with angle-bracket
+placeholder values (and the export step showed the session cookies the same way).
+No real secret was present — but a heuristic scanner cannot tell a placeholder
+assignment from a hardcoded credential, and the shape invites a future edit to
+paste a real value into the same spot. Fixed by rewording, not by exception.
+
+**Rules:**
+
+- In tracked docs (CLAUDE.md, README.md, SKILL.md, AGENTS.md), never write a
+  credential-bearing key (`password`, `username`, `liauth`, `fn_auth`, `token`)
+  immediately followed by `=` and a value — not even an obvious placeholder.
+  Describe request/cookie fields in **prose** instead: "form fields `username`,
+  `password`, and `grant_type` (the OAuth literal)"; "sends the `liauth` and
+  `fn_auth` cookies, both set to the session token".
+- Env-var *names* (`LOSEIT_PASSWORD`) and JSON examples with placeholder values
+  (`"password": "..."` in config.example.json) are fine — the ban is on
+  assignment-shaped literals for the bare credential keys.
+- Pinned by `internal/cli/docs_security_test.go::TestDocsCarryNoSecretShapedLiterals`.
+
 ## 4. Least privilege — permissions must match reality
 
 - Keep the `SKILL.md` `metadata.openclaw.permissions` block **exactly** in sync
@@ -229,6 +252,8 @@ Run before merging anything that touches config, auth, file I/O, network, docs, 
       re-tighten pattern; secrets stay gitignored.
 - [ ] No secret printed to stdout/stderr/logs at any verbosity; password masked in
       `config show`; `doctor` echoes no token/password.
+- [ ] No assignment-shaped credential literals in docs (a credential key + `=` +
+      value, even a placeholder) — describe request/cookie fields in prose (§3a).
 - [ ] `SKILL.md` permissions/env/network block matches the code exactly — and the
       `files.write` entry declares the token cache.
 - [ ] Login/export URLs stay compiled-in: no `LOSEIT_*_URL` env, no
@@ -266,6 +291,9 @@ Current set:
   - `TestDevDocsDoNotFrameScopeExpansion` — CLAUDE.md never frames collecting the
     rest of the export as a goal / "natural next step"; keeps the data-minimization
     framing.
+  - `TestDocsCarryNoSecretShapedLiterals` — tracked docs never write a credential
+    key as a key=value literal, even with a placeholder value (the ClawHub
+    `suspicious.exposed_secret_literal` guard, §3a).
 - `internal/config/config_test.go`
   - `TestURLEndpointsAreNotOverridableByUntrustedInput` — a hostile env var and a
     hostile `config.json` both fail to repoint the login/export URLs.
