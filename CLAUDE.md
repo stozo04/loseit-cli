@@ -16,10 +16,10 @@ You're in **loseit-cli**: a small, **read-only** Go binary whose ONE job is **au
 
 ### The flow (verified 2026-06-18)
 
-1. **Login:** `POST https://api.loseit.com/account/login`, `Content-Type: application/x-www-form-urlencoded`, body `username=<email>&password=<pw>&grant_type=password`.
+1. **Login:** `POST https://api.loseit.com/account/login`, `Content-Type: application/x-www-form-urlencoded`. Form fields: `username` (the Lose It email), `password` (the Lose It password), and `grant_type` (the OAuth literal `password`). Written as prose, not a key=value example, so no secret-shaped literal appears in docs — see CLAWHUB_STANDARDS §3a.
    - It's an OAuth **password-grant** endpoint. **The reCAPTCHA the web login form attaches (`captcha_token`/`captcha_site_key`) is NOT required by the API** — a plain POST authenticates. (Confirmed: bogus creds with *no* captcha return `{"error":"invalid_grant"}`, i.e. a credential error, not a captcha rejection.)
    - On success (HTTP 200) the response sets cookies: **`liauth`** and `fn_auth` (same value), plus `fn_authed=1`. `liauth` is an **ES384 JWT** — `Domain=loseit.com`, `HttpOnly`, **~14-day expiry** (`Max-Age=1209600`; JWT `exp`−`iat`).
-2. **Extract:** `GET https://www.loseit.com/export/data` with `Cookie: liauth=<t>; fn_auth=<t>` → returns a **ZIP of CSVs** (the user's full export).
+2. **Extract:** `GET https://www.loseit.com/export/data` sending the `liauth` and `fn_auth` cookies (both set to the session token) → returns a **ZIP of CSVs** (the user's full export).
 3. Parse the CSVs → emit JSON.
 
 ### Self-heal (in code — `internal/export/`)
