@@ -3,7 +3,9 @@ package cli
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -32,12 +34,22 @@ func newDaysCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&zip, "zip", "", "parse a downloaded export ZIP instead of fetching")
 	cmd.Flags().StringVar(&date, "date", "today", "today | yesterday | YYYY-MM-DD")
-	cmd.Flags().IntVar(&days, "days", 7, "number of days back to include")
+	cmd.Flags().IntVar(&days, "days", 7, "number of days back to include (>= 1)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit the frozen per-day JSON contract")
 	return cmd
 }
 
 func (a *App) runDays(cmd *cobra.Command, zipPath, date string, days int, asJSON bool) error {
+	// Validate flags before any config/network work: a typo'd --date or a
+	// nonsensical --days must not cost an export fetch (or a login).
+	if days < 1 {
+		return withCode(ExitUsage, fmt.Errorf("invalid --days %d (want >= 1)", days))
+	}
+	target, err := resolveDate(date)
+	if err != nil {
+		return withCode(ExitUsage, err)
+	}
+
 	cfg, err := a.resolveConfig()
 	if err != nil {
 		return err
@@ -46,11 +58,6 @@ func (a *App) runDays(cmd *cobra.Command, zipPath, date string, days int, asJSON
 	byDay, err := a.loadNutrition(cmd.Context(), cfg, zipPath)
 	if err != nil {
 		return err
-	}
-
-	target, err := resolveDate(date)
-	if err != nil {
-		return withCode(ExitUsage, err)
 	}
 
 	wanted := wantedDates(target, days)
@@ -107,5 +114,22 @@ func (a *App) loadNutrition(ctx context.Context, cfg *config.Config, zipPath str
 	if len(food) == 0 {
 		return nil, withCode(ExitExport, fmt.Errorf("%s not found / empty in the export", export.FoodLogsCSV))
 	}
-	return nutrition.BuildByDay(food, summary), nil
+	// Fail loud on export-format drift. Without these guards a renamed column
+	// silently coerces every value to 0 and a changed date format silently emits
+	// {} — wrong data with exit 0, which an unattended caller can't detect.
+	if missing := nutrition.MissingFoodColumns(food); len(missing) > 0 {
+		return nil, withCode(ExitExport, fmt.Errorf(
+			"%s is missing expected column(s): %s — the Lose It export format may have changed",
+			export.FoodLogsCSV, strings.Join(missing, ", "),
+		))
+	}
+	byDay := nutrition.BuildByDay(food, summary)
+	if len(byDay) == 0 {
+		return nil, withCode(ExitExport, fmt.Errorf(
+			"%s has %d row(s) but none produced a dated day — the export format may have changed (or every row is marked deleted)",
+			export.FoodLogsCSV, len(food),
+		))
+	}
+	slog.Debug("export parsed", "food_rows", len(food), "days", len(byDay))
+	return byDay, nil
 }

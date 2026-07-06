@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -110,6 +111,7 @@ func FetchZip(ctx context.Context, cfg *config.Config) ([]byte, error) {
 				config.EnvEmail, config.EnvPassword,
 			)
 		}
+		slog.Debug("no saved token; logging in")
 		t, err := loginAndSave(ctx, cfg)
 		if err != nil {
 			return nil, err
@@ -133,6 +135,7 @@ func FetchZip(ctx context.Context, cfg *config.Config) ([]byte, error) {
 			config.EnvEmail, config.EnvPassword,
 		)
 	}
+	slog.Debug("saved token rejected; refreshing via login")
 	t, lerr := loginAndSave(ctx, cfg)
 	if lerr != nil {
 		return nil, lerr
@@ -168,15 +171,23 @@ func fetchWithToken(ctx context.Context, cfg *config.Config, token string) ([]by
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// A server-side failure is not an auth problem — a fresh login won't fix it,
+	// so report the status instead of masquerading as an expired token.
+	if resp.StatusCode >= 500 {
+		return nil, newErr("export request failed: Lose It returned HTTP %d (server error).", resp.StatusCode)
+	}
+
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, newErr("reading export response failed: %v", err)
 	}
-	// A valid export is a non-trivial ZIP. An HTML login page (expired cookie)
-	// fails both checks.
-	if len(data) <= 1000 || !looksLikeZip(data) {
+	// An expired cookie makes Lose It serve an HTML login page; anything without
+	// the ZIP signature is treated as retryable-via-login. The signature alone
+	// decides — a legitimately small export is still a ZIP.
+	if !looksLikeZip(data) {
 		return nil, errExpired
 	}
+	slog.Debug("export fetched", "bytes", len(data))
 	return data, nil
 }
 

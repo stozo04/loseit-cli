@@ -2,7 +2,6 @@ package export
 
 import (
 	"context"
-	"crypto/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,17 +15,14 @@ import (
 
 const goodToken = "LIAUTH_TEST_TOKEN"
 
-// bigZip returns a valid ZIP guaranteed to clear FetchZip's >1000-byte check by
-// bundling a high-entropy blob that won't compress away.
-func bigZip(t *testing.T) []byte {
+// exportZip returns a small valid export ZIP. Deliberately tiny: fetchWithToken
+// accepts any response carrying the ZIP signature, with no minimum size — a
+// legitimately small export must never be misread as an expired-token page, so
+// every FetchZip test here doubles as a pin on that.
+func exportZip(t *testing.T) []byte {
 	t.Helper()
-	blob := make([]byte, 4096)
-	if _, err := rand.Read(blob); err != nil {
-		t.Fatal(err)
-	}
 	return makeZip(t, map[string]string{
 		FoodLogsCSV: "Date,Name,Calories\n2026-06-16,Greek Yogurt,120\n",
-		"blob.bin":  string(blob),
 	})
 }
 
@@ -36,7 +32,7 @@ func bigZip(t *testing.T) []byte {
 func loginExportServer(t *testing.T) (*httptest.Server, *int) {
 	t.Helper()
 	logins := 0
-	zipBytes := bigZip(t)
+	zipBytes := exportZip(t)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/account/login", func(w http.ResponseWriter, r *http.Request) {
 		logins++
@@ -238,6 +234,41 @@ func TestFetchZipRefusesNonFirstPartyURL(t *testing.T) {
 	}
 	if _, err := FetchZip(context.Background(), cfg); err == nil {
 		t.Fatal("expected FetchZip to refuse a non-Lose It export endpoint")
+	}
+}
+
+// TestFetchZipServerErrorIsNotExpired pins the 5xx path: a Lose It outage must
+// surface as an HTTP error, not be misdiagnosed as an expired token — which
+// would trigger a pointless re-login and end in a misleading auth message.
+func TestFetchZipServerErrorIsNotExpired(t *testing.T) {
+	t.Setenv(config.EnvToken, "")
+	logins := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("/account/login", func(w http.ResponseWriter, _ *http.Request) {
+		logins++
+		http.SetCookie(w, &http.Cookie{Name: loginCookie, Value: goodToken})
+	})
+	mux.HandleFunc("/export/data", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(tokenPath, []byte("SAVED\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testCfg(srv, tokenPath, true)
+
+	_, err := FetchZip(context.Background(), cfg)
+	if err == nil {
+		t.Fatal("expected an error on HTTP 500")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("error should carry the HTTP status: %v", err)
+	}
+	if logins != 0 {
+		t.Errorf("logins = %d, want 0 (a 5xx must not trigger re-login)", logins)
 	}
 }
 

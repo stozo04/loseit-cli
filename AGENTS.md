@@ -11,8 +11,8 @@ its session-token cache (`token_path`, mode 0600) when it logs in. It never modi
 | Code | Meaning |
 |---|---|
 | `0` | Success |
-| `2` | Export / parse failure (no token, expired cookie, missing/invalid ZIP, unreadable export, empty `food-logs.csv`) |
-| `64` | Usage error (bad flags, bad `--date`) |
+| `2` | Export / parse failure (no token, expired cookie, missing/invalid ZIP, unreadable export, empty `food-logs.csv`, unexpected export format — missing columns or no parseable dates) |
+| `64` | Usage error (bad flags, bad `--date`, `--days` < 1) |
 | `78` | Config error (unreadable / invalid `config.json`) |
 | `1` | Other failure |
 
@@ -31,7 +31,7 @@ loseit-cli days --json                 # cookie-fetch path (needs a token)
 |---|---|---|
 | `--zip PATH` | parse a downloaded export ZIP instead of fetching | — (cookie fetch) |
 | `--date` | civil anchor: `today` \| `yesterday` \| `YYYY-MM-DD` | `today` |
-| `--days N` | days back from `--date` (inclusive window) | `7` |
+| `--days N` | days back from `--date` (inclusive window, must be ≥ 1) | `7` |
 | `--json` | emit the frozen per-day JSON contract | off (human table) |
 
 ### `days --json` shape (FROZEN)
