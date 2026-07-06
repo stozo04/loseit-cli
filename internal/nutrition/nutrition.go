@@ -91,6 +91,33 @@ type dayAcc struct {
 	order    []string // meal names in first-encounter order.
 }
 
+// requiredFoodColumns are the food-logs.csv headers BuildByDay reads. If Lose It
+// renamed one, num() would silently coerce every value to 0 (and a renamed Date
+// would drop every row), so callers assert these exist and fail loudly instead
+// of emitting wrong data with exit 0.
+var requiredFoodColumns = []string{
+	"Date", "Name", "Meal", "Quantity", "Units", "Calories", "Deleted",
+	"Fat (g)", "Protein (g)", "Carbohydrates (g)", "Fiber (g)",
+}
+
+// MissingFoodColumns returns the required food-log columns absent from the rows'
+// header set, in requiredFoodColumns order. Rows are header-keyed maps where
+// every row carries every header (missing trailing fields become ""), so the
+// first row is representative. Empty input yields nil — the presence of rows is
+// the caller's check.
+func MissingFoodColumns(rows []map[string]string) []string {
+	if len(rows) == 0 {
+		return nil
+	}
+	var missing []string
+	for _, c := range requiredFoodColumns {
+		if _, ok := rows[0][c]; !ok {
+			missing = append(missing, c)
+		}
+	}
+	return missing
+}
+
 // BuildByDay returns {date_iso: Nutrition} aggregated from the export rows. Rows
 // are header-keyed maps (csv.DictReader style).
 func BuildByDay(foodRows, summaryRows []map[string]string) map[string]Nutrition {

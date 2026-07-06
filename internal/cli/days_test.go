@@ -62,6 +62,31 @@ func writeExportZip(t *testing.T) string {
 	return path
 }
 
+// writeZipMembers writes a ZIP with the given members to a temp file and returns
+// its path, for tests that need a deliberately malformed export.
+func writeZipMembers(t *testing.T, members map[string]string) string {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, content := range members {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.WriteString(w, content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "export.zip")
+	if err := os.WriteFile(path, buf.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 func TestDaysJSONGolden(t *testing.T) {
 	zipPath := writeExportZip(t)
 	stdout, _, err := run(t, "days", "--zip", zipPath, "--json", "--date", "2026-06-16", "--days", "7")
@@ -146,5 +171,72 @@ func TestDaysMissingZipExits2(t *testing.T) {
 	var exit *ExitError
 	if !errors.As(err, &exit) || exit.Code != ExitExport {
 		t.Fatalf("err = %v, want ExitError code %d", err, ExitExport)
+	}
+}
+
+func TestDaysZeroDaysExits64(t *testing.T) {
+	zipPath := writeExportZip(t)
+	_, _, err := run(t, "days", "--zip", zipPath, "--days", "0")
+	var exit *ExitError
+	if !errors.As(err, &exit) || exit.Code != ExitUsage {
+		t.Fatalf("err = %v, want ExitError code %d", err, ExitUsage)
+	}
+}
+
+// TestDaysMissingColumnExits2 pins the fail-loud drift guard: a renamed
+// food-logs.csv column must be a loud exit-2 error naming the column — never
+// silently-zeroed macros with exit 0.
+func TestDaysMissingColumnExits2(t *testing.T) {
+	food := strings.ReplaceAll(foodCSV, "Protein (g)", "Protein")
+	zipPath := writeZipMembers(t, map[string]string{
+		"food-logs.csv":             food,
+		"daily-calorie-summary.csv": summaryCSV,
+	})
+	_, _, err := run(t, "days", "--zip", zipPath, "--json")
+	var exit *ExitError
+	if !errors.As(err, &exit) || exit.Code != ExitExport {
+		t.Fatalf("err = %v, want ExitError code %d", err, ExitExport)
+	}
+	if !strings.Contains(err.Error(), "Protein (g)") {
+		t.Errorf("error should name the missing column: %v", err)
+	}
+}
+
+// TestDaysNoParseableDatesExits2 pins the other drift guard: rows whose dates
+// no longer parse must be a loud exit-2 error — never a silent {} that looks
+// like "nothing logged".
+func TestDaysNoParseableDatesExits2(t *testing.T) {
+	food := foodHeader + "\n" +
+		"June 16 2026,Greek Yogurt,icon,Breakfast,1,cup,120,false,0,22,9,0,9,0,10,80\n"
+	zipPath := writeZipMembers(t, map[string]string{
+		"food-logs.csv":             food,
+		"daily-calorie-summary.csv": summaryCSV,
+	})
+	_, _, err := run(t, "days", "--zip", zipPath, "--json")
+	var exit *ExitError
+	if !errors.As(err, &exit) || exit.Code != ExitExport {
+		t.Fatalf("err = %v, want ExitError code %d", err, ExitExport)
+	}
+	if !strings.Contains(err.Error(), "export format may have changed") {
+		t.Errorf("error should point at format drift: %v", err)
+	}
+}
+
+// TestVerboseLogsToStderrOnly pins the --verbose contract: -v emits debug
+// diagnostics on stderr while stdout stays pure, parseable JSON.
+func TestVerboseLogsToStderrOnly(t *testing.T) {
+	t.Setenv("LOG_LEVEL", "") // an inherited LOG_LEVEL would override -v.
+	zipPath := writeExportZip(t)
+	stdout, stderr, err := run(t, "days", "--zip", zipPath, "--json", "-v",
+		"--date", "2026-06-16", "--days", "7")
+	if err != nil {
+		t.Fatalf("days --json -v: %v", err)
+	}
+	if !strings.Contains(stderr, "export parsed") {
+		t.Errorf("-v should emit debug logs to stderr, got: %q", stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Errorf("stdout must stay pure JSON under -v: %v\n%s", err, stdout)
 	}
 }

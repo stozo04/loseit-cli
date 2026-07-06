@@ -184,3 +184,23 @@ func TestBankersRoundingSumThenRound(t *testing.T) {
 		})
 	}
 }
+
+// TestMissingFoodColumns pins the drift detector: a renamed column is reported
+// by its expected name; a complete header and empty input report nothing.
+func TestMissingFoodColumns(t *testing.T) {
+	foods, _ := fixture()
+	if got := MissingFoodColumns(foods); got != nil {
+		t.Errorf("complete header: missing = %v, want nil", got)
+	}
+	if got := MissingFoodColumns(nil); got != nil {
+		t.Errorf("empty input: missing = %v, want nil", got)
+	}
+
+	renamed := food("2026-06-16", "x", "Breakfast", "1", "cup", "120", "false", "0", "22", "9", "0")
+	delete(renamed, "Protein (g)")
+	renamed["Protein"] = "22"
+	got := MissingFoodColumns([]map[string]string{renamed})
+	if len(got) != 1 || got[0] != "Protein (g)" {
+		t.Errorf("missing = %v, want [Protein (g)]", got)
+	}
+}

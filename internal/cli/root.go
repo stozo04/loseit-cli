@@ -15,16 +15,15 @@ import (
 	"github.com/stozo04/loseit-cli/internal/version"
 )
 
-// App holds process-wide state shared by every command: resolved config, a
-// stderr logger, and the values of the global persistent flags. Config is
-// resolved lazily so commands that need no config (version, completion) never
-// fail on a malformed config.json.
+// App holds process-wide state shared by every command: resolved config and the
+// values of the global persistent flags. Config is resolved lazily so commands
+// that need no config (version, completion) never fail on a malformed
+// config.json.
 type App struct {
 	configPath string // --config
 	verbose    bool   // --verbose/-v
 
-	cfg    *config.Config
-	logger *slog.Logger
+	cfg *config.Config
 }
 
 // NewRootCmd builds the root command and registers every subcommand. A fresh
@@ -62,9 +61,11 @@ func newRootCmd(app *App) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
-		// Initialize the stderr logger before any command body runs.
+		// Route slog through stderr before any command body runs, so the
+		// slog.Debug diagnostics on the export/login path (and anywhere else)
+		// become visible with --verbose. stdout stays data-only.
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			app.logger = newLogger(cmd.ErrOrStderr(), app.verbose)
+			slog.SetDefault(newLogger(cmd.ErrOrStderr(), app.verbose))
 			return nil
 		},
 	}

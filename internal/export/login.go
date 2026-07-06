@@ -2,6 +2,7 @@ package export
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -62,6 +63,7 @@ func Login(ctx context.Context, cfg *config.Config) (string, error) {
 
 	for _, c := range resp.Cookies() {
 		if c.Name == loginCookie && c.Value != "" {
+			slog.Debug("login ok; session cookie received") // never the value.
 			return c.Value, nil
 		}
 	}
@@ -107,5 +109,6 @@ func SaveToken(cfg *config.Config, token string) error {
 	if cerr := f.Close(); cerr != nil {
 		return newErr("writing token to %s: %v", path, cerr)
 	}
+	slog.Debug("session token saved", "path", path)
 	return nil
 }
