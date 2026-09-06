@@ -49,6 +49,9 @@ archives:
     files:
       - README.md
       - AGENTS.md
+      - docs/*.md
+      - .claude/CLAWHUB_STANDARDS.md
+      - RELEASING.md
       - SKILL.md
       - LICENSE
 

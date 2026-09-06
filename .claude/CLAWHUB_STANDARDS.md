@@ -87,7 +87,7 @@ disallowed, or failing to protect the token cache as a credential).
 ## 3a. No secret-shaped literals in docs — even placeholders
 
 **Incident (2026-07-06):** a ClawHub deploy flagged **Critical /
-`suspicious.exposed_secret_literal`** on CLAUDE.md's auth-flow line, which spelled
+`suspicious.exposed_secret_literal`** on the former CLAUDE.md auth-flow line, which spelled
 out the login form body as a single key=value string with angle-bracket
 placeholder values (and the export step showed the session cookies the same way).
 No real secret was present — but a heuristic scanner cannot tell a placeholder
@@ -138,7 +138,7 @@ exported health data. That is broader than a "Lose It only" extractor should be.
   `DefaultExportURL`) and have **no env or config override** — there is no
   `LOSEIT_LOGIN_URL`/`LOSEIT_EXPORT_URL`, and `fileConfig` deliberately does not
   decode `login_url`/`export_url`. A Lose It endpoint move is a **code change +
-  rebuild**, never a runtime knob. (CLAUDE.md's auth playbook already assumes this.)
+  rebuild**, never a runtime knob. (docs/PROJECT_INSTRUCTIONS.md's auth playbook already assumes this.)
 - **Defense in depth:** before sending anything, `Login` and `fetchWithToken` call
   `assertFirstPartyURL` — credentials/cookies may only go to `*.loseit.com` over
   HTTPS (loopback is allowed *only* so tests can use an httptest server). If a
@@ -164,7 +164,7 @@ exported health data. That is broader than a "Lose It only" extractor should be.
 
 ## 5b. Testing with real credentials is a privacy hazard — warn and contain it
 
-CLAUDE.md's "one hard rule" requires a **live** end-to-end test with **real**
+docs/PROJECT_INSTRUCTIONS.md's "one hard rule" requires a **live** end-to-end test with **real**
 credentials and **real** health data. That is necessary (mocks miss Lose It auth
 changes) but risky, so the instruction must always carry the privacy guard:
 
@@ -235,8 +235,7 @@ directories, no usernames, no drive letters (e.g. `C:\Users\NAME\…`,
 - Tests write only under `t.TempDir()`.
 - Examples/sample configs use neutral placeholders — `you@example.com`,
   `~/Downloads/loseit-export.zip` — never a real local path or username.
-- `CLAUDE.md` predates this rule and still contains a few owner-local paths; when
-  you touch a line, generalize it. Don't bake new machine-specific paths in.
+- Shared project instructions use portable tool locations. Keep new paths portable too.
 
 ---
 
@@ -268,7 +267,7 @@ Run before merging anything that touches config, auth, file I/O, network, docs, 
 - [ ] `go build ./... && go vet ./... && go test -race ./...` green; `gofumpt -l .`
       empty; `golangci-lint run` clean.
 - [ ] New security behavior is pinned by an **immutable regression test** (below).
-- [ ] **Live end-to-end test** run (CLAUDE.md's one hard rule) before the PR.
+- [ ] **Live end-to-end test** run (docs/PROJECT_INSTRUCTIONS.md's one hard rule) before the PR.
 
 ## Immutable tests for security behavior
 
@@ -288,7 +287,7 @@ Current set:
   - `TestUserDocsDoNotMisrepresentLocalWrites` — README + SKILL never carry the
     banned "writes no files" phrasings, always disclose the token cache, and keep a
     `Security & secrets` section.
-  - `TestDevDocsDoNotFrameScopeExpansion` — CLAUDE.md never frames collecting the
+  - `TestDevDocsDoNotFrameScopeExpansion` — docs/PROJECT_INSTRUCTIONS.md never frames collecting the
     rest of the export as a goal / "natural next step"; keeps the data-minimization
     framing.
   - `TestDocsCarryNoSecretShapedLiterals` — tracked docs never write a credential
