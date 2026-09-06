@@ -74,18 +74,18 @@ func TestUserDocsDoNotMisrepresentLocalWrites(t *testing.T) {
 // nutrition-only / data-minimization framing must stay.
 func TestDevDocsDoNotFrameScopeExpansion(t *testing.T) {
 	root := repoRoot(t)
-	b, err := os.ReadFile(filepath.Join(root, "CLAUDE.md"))
+	b, err := os.ReadFile(filepath.Join(root, "docs", "PROJECT_INSTRUCTIONS.md"))
 	if err != nil {
-		t.Fatalf("read CLAUDE.md: %v", err)
+		t.Fatalf("read docs/PROJECT_INSTRUCTIONS.md: %v", err)
 	}
 	lower := strings.ToLower(string(b))
 	for _, banned := range []string{"natural next step", "extract-all"} {
 		if strings.Contains(lower, banned) {
-			t.Errorf("CLAUDE.md frames scope expansion (%q) — the tool is nutrition-only by design", banned)
+			t.Errorf("docs/PROJECT_INSTRUCTIONS.md frames scope expansion (%q) — the tool is nutrition-only by design", banned)
 		}
 	}
 	if !strings.Contains(lower, "data minimization") {
-		t.Error("CLAUDE.md must keep the nutrition-only / data-minimization framing")
+		t.Error("docs/PROJECT_INSTRUCTIONS.md must keep the nutrition-only / data-minimization framing")
 	}
 }
 
@@ -103,7 +103,7 @@ func TestDocsCarryNoSecretShapedLiterals(t *testing.T) {
 	// is no boundary before the key) — the ban is on the bare credential keys.
 	re := regexp.MustCompile(`(?i)\b(password|username|liauth|fn_auth|token)=`)
 
-	for _, name := range []string{"CLAUDE.md", "README.md", "SKILL.md", "AGENTS.md"} {
+	for _, name := range []string{"CLAUDE.md", "README.md", "SKILL.md", "AGENTS.md", "docs/PROJECT_INSTRUCTIONS.md", "docs/MACHINE_CONTRACT.md", "docs/OPERATING_INSTRUCTIONS.md"} {
 		b, err := os.ReadFile(filepath.Join(root, name))
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
