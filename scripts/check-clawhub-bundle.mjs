@@ -1,11 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const EXPECTED_BUNDLE = ["LICENSE", "SKILL.md", "config.example.json"];
 
-const repoRoot = new URL("..", import.meta.url).pathname;
-const globalModules = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
+const repoRoot = fileURLToPath(new URL("..", import.meta.url));
+const globalModules = execFileSync("npm", ["root", "-g"], { encoding: "utf8", shell: process.platform === "win32" }).trim();
 const skillsModule = pathToFileURL(join(globalModules, "clawhub", "dist", "skills.js")).href;
 const { listSkillFiles } = await import(skillsModule);
 
