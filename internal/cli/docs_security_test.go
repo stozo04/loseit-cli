@@ -116,3 +116,16 @@ func TestDocsCarryNoSecretShapedLiterals(t *testing.T) {
 		}
 	}
 }
+
+var skillSpectorUnsafeDefaultsProse = regexp.MustCompile(`(?i)world[_-]?(?:readable|writable|executable)`)
+
+func TestShippedSkillAvoidsUnsafeDefaultsPhrasing(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := skillSpectorUnsafeDefaultsProse.FindString(string(b)); m != "" {
+		t.Errorf("SKILL.md contains %q, which SkillSpector's TM3 Unsafe Defaults rule flags even inside a warning; "+
+			"say \"a directory other users can read\" instead (CLAWHUB_STANDARDS §9)", m)
+	}
+}
