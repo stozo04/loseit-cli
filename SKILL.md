@@ -130,7 +130,7 @@ A JSON object keyed by ISO date → nutrition object (empty selection → `{}`):
 ```
 
 `loseit_budget` / `loseit_under` / `exercise_adjustment` appear only when the daily summary provides
-them, after `meals`. Numbers are integers (banker's rounding). See [docs/MACHINE_CONTRACT.md](docs/MACHINE_CONTRACT.md) for the full
+them, after `meals`. Numbers are integers (banker's rounding). See [docs/MACHINE_CONTRACT.md](https://github.com/stozo04/loseit-cli/blob/main/docs/MACHINE_CONTRACT.md) for the full
 contract and exit codes.
 
 ## Security & secrets
