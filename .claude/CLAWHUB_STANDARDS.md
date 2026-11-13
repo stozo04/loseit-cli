@@ -177,6 +177,31 @@ changes) but risky, so the instruction must always carry the privacy guard:
 - The export ZIP and `days` JSON are personal health data — treat them as secrets
   (§2–§3 apply to them too).
 
+## 5c. Redirects never carry credentials off Lose It
+
+**Incident (2026-11-13):** ClawHub's A.I.G scanner flagged **Warning / T09
+Insecure Skill Coding Practices** on `internal/export/login.go`: `assertFirstPartyURL`
+checked only the first URL, and the default `http.Client` follows redirects, replaying
+a POST body on 307/308. A redirect from the login endpoint would have resent the email
+and password to any host; a redirect from the export endpoint could carry the session
+cookie to `http://` Lose It in cleartext. A test proved both before the fix.
+
+**Rules:**
+
+- The login POST follows **no** redirects (`CheckRedirect: refuseRedirects`); any 3xx
+  fails with "refusing to resend your credentials". Lose It's login answers directly
+  (no redirect, verified 2026-11-13).
+- The export GET follows a redirect only if the target passes `assertFirstPartyURL`
+  (`firstPartyRedirectsOnly`, at most 5 hops). Lose It redirects a cookieless export
+  request to `https://www.loseit.com/account/…`, which stays allowed. The test-only
+  loopback exemption in `assertFirstPartyURL` does not extend to redirects: a hop to a
+  loopback address is accepted only when the original request was already loopback.
+- Every new credential- or cookie-bearing request sets a `CheckRedirect` the same way.
+- Pinned by `internal/export/redirect_test.go::TestLoginNeverResendsCredentialsOnRedirect`
+  (307, 308 and 302 to a second server, which must receive nothing) and
+  `TestFetchZipRefusesRedirectsThatLeaveLoseItOverHTTPS` (off-domain and `http://`), and
+  `TestExportRedirectFromLoseItToLoopbackIsRefused`.
+
 ## 6. Nutrition-only scope + the write path lives in the consumer
 
 **Incident:** a dev-doc section described the export ZIP's *other* contents
@@ -237,6 +262,40 @@ directories, no usernames, no drive letters (e.g. `C:\Users\NAME\…`,
   `~/Downloads/loseit-export.zip` — never a real local path or username.
 - Shared project instructions use portable tool locations. Keep new paths portable too.
 
+## 9. The published bundle is a whitelist — only the skill, never the repo
+
+**Incident (2026-11-13):** the publish workflows ran `clawhub skill publish .`, and
+the clawhub CLI uploads every non-dotfile that is not gitignored. So the "skill"
+ClawHub scanned was the whole repo: 43 files, including `internal/cli/completion.go`,
+`internal/version`, the Go tests, `scripts/sync-harness-skills.py`, and the agent
+docs. Its reviewer graded each file against the nutrition-extractor description and
+flagged **6 × High / MCP Tool Poisoning** (dev files whose purpose isn't
+the declared one), **High / Vague Triggers** (`docs/OPERATING_INSTRUCTIONS.md`, the
+repo's own agent rules), **Skill Enumeration** and **subprocess** findings (the
+harness-sync script), plus duplicate **External Transmission** hits on copied docs.
+
+**Rules:**
+
+- `.clawhubignore` is a **whitelist**: `/*` excludes everything, then `!/<file>`
+  lines allow back exactly `SKILL.md`, `LICENSE`, and `config.example.json`. The
+  Go source, tests, dev scripts, and agent docs stay on GitHub, where the SKILL
+  `homepage` points.
+- The shipped SKILL.md avoids phrases SkillSpector's static rules match even inside a
+  warning: say "a directory other users can read", never `world-readable`/`world-writable`
+  (TM3 Unsafe Defaults). Pinned by
+  `internal/cli/docs_security_test.go::TestShippedSkillAvoidsUnsafeDefaultsPhrasing`.
+- `SKILL.md` links to anything outside the bundle with an absolute GitHub URL — a
+  relative link to an excluded file is broken for ClawHub users.
+- Adding a file to the bundle is a deliberate change: update `.clawhubignore`, the
+  `EXPECTED_BUNDLE` list in `scripts/check-clawhub-bundle.mjs`, and this section in
+  the same PR, and make sure the new file matches the SKILL description.
+- Both publish workflows pin `clawhub` and run the bundle check before publishing,
+  so a CLI upgrade that changes file selection fails loudly instead of shipping the
+  repo. Bump the pinned version in all three workflows together.
+- Pinned by `scripts/check-clawhub-bundle.mjs` (`make check-clawhub`, CI job
+  `clawhub bundle`), which runs the clawhub CLI's own `listSkillFiles` against the
+  checkout and fails unless the bundle is exactly the whitelist.
+
 ---
 
 ## Pre-publish checklist
@@ -255,6 +314,7 @@ Run before merging anything that touches config, auth, file I/O, network, docs, 
       value, even a placeholder) — describe request/cookie fields in prose (§3a).
 - [ ] `SKILL.md` permissions/env/network block matches the code exactly — and the
       `files.write` entry declares the token cache.
+- [ ] Every credential/cookie-bearing `http.Client` sets `CheckRedirect` (§5c).
 - [ ] Login/export URLs stay compiled-in: no `LOSEIT_*_URL` env, no
       `login_url`/`export_url` config key, no flag — and `assertFirstPartyURL` still
       guards both requests. Tests inject loopback via a pre-built config, never env.
@@ -264,6 +324,8 @@ Run before merging anything that touches config, auth, file I/O, network, docs, 
       write path (DAILY_LOG / sync / upsert) added to this repo.
 - [ ] No machine-specific paths (home dirs, usernames, drive letters) in code,
       docs, comments, or commit messages on lines you touched.
+- [ ] `make check-clawhub` passes: the ClawHub bundle is exactly `SKILL.md`,
+      `LICENSE`, `config.example.json` (§9).
 - [ ] `go build ./... && go vet ./... && go test -race ./...` green; `gofumpt -l .`
       empty; `golangci-lint run` clean.
 - [ ] New security behavior is pinned by an **immutable regression test** (below).
@@ -302,6 +364,19 @@ Current set:
   - `TestLoginRefusesNonFirstPartyURL` / `TestFetchZipRefusesNonFirstPartyURL` —
     `assertFirstPartyURL` blocks sending credentials/cookies off-domain.
 
+- `internal/export/redirect_test.go`
+  - `TestLoginNeverResendsCredentialsOnRedirect` — a redirected login is refused and
+    the redirect target receives nothing (§5c).
+  - `TestFetchZipRefusesRedirectsThatLeaveLoseItOverHTTPS` — the export never follows
+    a redirect off `*.loseit.com` or to `http://` (§5c).
+  - `TestExportRedirectFromLoseItToLoopbackIsRefused` — a real Lose It response can't
+    redirect the client to a local address (§5c).
+- `internal/cli/docs_security_test.go::TestShippedSkillAvoidsUnsafeDefaultsPhrasing` —
+  the shipped SKILL.md carries no `world-readable`-style phrase (§9).
+- `scripts/check-clawhub-bundle.mjs`
+  - fails unless clawhub's own file selection yields exactly the whitelisted
+    bundle (§9).
+
 When you add a safeguard, add the matching test in the **same PR**. Name it so the
 guarantee is obvious, and assert the **negative** (the bad thing does NOT happen),
 not just the happy path.
@@ -314,10 +389,10 @@ touch that surface:
 
 | Category | Sub-checks | Where we stay clean |
 |---|---|---|
-| **MCP Tool Poisoning** | Hidden Instructions, Unicode Deception, Parameter Description Injection | §1 — honest, consistent descriptions; no hidden directives in SKILL. |
+| **MCP Tool Poisoning** | Hidden Instructions, Unicode Deception, Parameter Description Injection | §1, §9 — honest, consistent descriptions; no hidden directives in SKILL; only skill files are published, so no unrelated code is graded against the description. |
 | **Intent-Code Divergence** | (read-only vs. token write; declared vs. real behavior) | §1, §5 — qualify "read-only"; disclose the token cache; endpoints are fixed, not redirectable. |
 | **Missing User Warnings** | (plaintext secrets, autonomous writes, real-cred testing) | §1–§2, §5b, §6 — `Security & secrets` section; consumer write path is user-initiated; live-test privacy warning. |
-| **Data Exfiltration** | External Transmission, Env Harvesting, File Enumeration | §3, §5 — credentials/cookies go only to `*.loseit.com` (fixed endpoints + `assertFirstPartyURL`); read only documented files; no secret in output. |
+| **Data Exfiltration** | External Transmission, Env Harvesting, File Enumeration | §3, §5, §5c — credentials/cookies go only to `*.loseit.com` over HTTPS (fixed endpoints + `assertFirstPartyURL`, enforced on every redirect hop); read only documented files; no secret in output. |
 | **Prompt Injection** | Instruction Override, Hidden Instructions, Exfiltration Commands | No instruction-bearing content in code/docs; export data is parsed, never executed. |
 | **Privilege Escalation** | Excessive Permissions, Sudo/Root, Credential Access | §2, §4 — `0600`/`0700`, no `sudo`/shell, minimal credential reads. |
 | **Supply Chain** | Unpinned Deps, External Script Fetching, Obfuscated Code | Pure stdlib + cobra; `go.mod` pinned; `goreleaser` builds; no fetched scripts. |
@@ -327,8 +402,8 @@ touch that surface:
 | **Memory Poisoning** | Persistent Context Injection, Context Stuffing | No persisted agent memory in this repo. |
 | **Tool Misuse** | Parameter Abuse, Chaining Abuse, Unsafe Defaults | §4–§5 — narrow flags, fixed first-party endpoints, no arbitrary URLs/files. |
 | **Rogue Agent** | Self-Modification, Session Persistence | Token cache is the only persistence — declared, `0600`, expiring (§1–§2). |
-| **Trigger Abuse** | Overly Broad / Shadow / Keyword-Baiting Triggers | SKILL `description` matches behavior; no bait keywords. |
-| **Behavioral AST** | `exec()` / `eval()` / Dynamic Import | None — no `os/exec`, no dynamic code (§5a). |
+| **Trigger Abuse** | Overly Broad / Shadow / Keyword-Baiting Triggers | SKILL `description` matches behavior; no bait keywords; repo agent rules (`docs/OPERATING_INSTRUCTIONS.md`) stay out of the bundle (§9). |
+| **Behavioral AST** | `exec()` / `eval()` / Dynamic Import | None in the skill — no `os/exec`, no dynamic code (§5a); dev scripts that use `subprocess` stay out of the bundle (§9). |
 | **Taint Tracking** | Direct / Variable-Mediated Taint, Credential Exfil Chain | Credentials flow only into the login POST; never into output or a sink (§3). |
 | **YARA Signatures** | Malware / Webshell / Cryptominer | N/A — single-purpose extractor. |
 | **MCP Least Privilege** | Underdeclared Capability, Wildcard Permission, Missing Declaration | §4 — permissions block matches code; token write declared, no wildcards. |

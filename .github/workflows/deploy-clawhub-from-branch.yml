@@ -22,17 +22,29 @@ on:
           overwriting the live skill.
         required: true
         default: loseit
+      version:
+        description: >-
+          Explicit version to publish (e.g. 1.0.1). Leave empty to let clawhub
+          pick the next patch; set it when the slug's latest version is hidden
+          from the CLI and the automatic pick collides.
+        required: false
+        default: ""
 
 permissions:
   contents: read
 
+concurrency:
+  group: deploy-clawhub-${{ inputs.slug }}
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       # No `ref:` — checkout defaults to github.ref, i.e. the branch chosen in the
       # Run workflow dropdown, so we publish THAT branch's SKILL.md.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Summarize what will be published
         # Values pass through env, never interpolated straight into the script, so
@@ -54,8 +66,15 @@ jobs:
             echo "| Triggered by | @$ACTOR |"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
       - name: Install clawhub CLI
-        run: npm install -g clawhub
+        run: npm install -g clawhub@0.26.0
+
+      - name: Check the skill bundle
+        run: node scripts/check-clawhub-bundle.mjs
 
       - name: Authenticate clawhub
         run: clawhub login --token "$CLAWHUB_TOKEN"
@@ -64,6 +83,7 @@ jobs:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN_LOSEIT }}
 
       - name: Publish skill
-        run: clawhub skill publish . --owner stozo04 --slug "$SLUG" --name "Lose It Nutrition"
+        run: clawhub skill publish . --owner stozo04 --slug "$SLUG" --name "Lose It Nutrition" ${VERSION:+--version "$VERSION"}
         env:
           SLUG: ${{ inputs.slug }}
+          VERSION: ${{ inputs.version }}

@@ -164,7 +164,7 @@ func fetchWithToken(ctx context.Context, cfg *config.Config, token string) ([]by
 	req.Header.Set("Cookie", fmt.Sprintf("liauth=%s; fn_auth=%s", token, token))
 	req.Header.Set("User-Agent", userAgent)
 
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := &http.Client{Timeout: 120 * time.Second, CheckRedirect: firstPartyRedirectsOnly}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, newErr("export request failed: %v", err)
@@ -287,6 +287,26 @@ func assertFirstPartyURL(raw string) error {
 		return newErr("refusing to send credentials to a non-Lose It host (%s).", host)
 	}
 	return nil
+}
+
+const maxExportRedirects = 5
+
+func refuseRedirects(*http.Request, []*http.Request) error {
+	return http.ErrUseLastResponse
+}
+
+func firstPartyRedirectsOnly(req *http.Request, via []*http.Request) error {
+	if len(via) > maxExportRedirects {
+		return newErr("refusing to follow more than %d redirects.", maxExportRedirects)
+	}
+	if isLoopbackHost(req.URL.Hostname()) && !isLoopbackHost(via[0].URL.Hostname()) {
+		return newErr("refusing to follow a redirect from Lose It to a local address (%s).", req.URL.Hostname())
+	}
+	return assertFirstPartyURL(req.URL.String())
+}
+
+func isRedirect(status int) bool {
+	return status >= http.StatusMultipleChoices && status < http.StatusBadRequest
 }
 
 // isLoopbackHost reports whether host refers to the local machine.

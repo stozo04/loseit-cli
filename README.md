@@ -118,7 +118,7 @@ the binary and needs no configuration — note the session token **is cached to 
 This tool handles two **sensitive** local files. Treat both as you would any password:
 
 - **`config.json`** holds your Lose It **email and password in plaintext**. It is **gitignored** —
-  never commit it, and don't drop it in a shared, world-readable, or backed-up location. On a shared
+  never commit it, and don't drop it in a shared location, one other users can read, or one that is backed up. On a shared
   machine, prefer the `LOSEIT_EMAIL` / `LOSEIT_PASSWORD` environment variables over a file on disk.
 - **The session-token cache** (`token_path`, default `~/.config/loseit/token`) holds the `liauth`
   cookie — a **reusable, ~14-day session credential** for your account. It is written **owner-only

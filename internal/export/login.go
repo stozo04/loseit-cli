@@ -48,13 +48,16 @@ func Login(ctx context.Context, cfg *config.Config) (string, error) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", userAgent)
 
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := &http.Client{Timeout: 60 * time.Second, CheckRedirect: refuseRedirects}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", newErr("login request failed: %v", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if isRedirect(resp.StatusCode) {
+		return "", newErr("login endpoint redirected (HTTP %d) — refusing to resend your credentials.", resp.StatusCode)
+	}
 	if resp.StatusCode != http.StatusOK {
 		// Bad credentials come back as a non-200 (the API returns 404/invalid_grant
 		// for an unknown account); don't echo the body, which may carry detail.
