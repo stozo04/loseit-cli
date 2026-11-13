@@ -5,6 +5,7 @@ BINARY       := loseit-cli
 PKG          := ./...
 MAIN         := ./cmd/loseit-cli
 LOCAL_PREFIX := github.com/stozo04/loseit-cli
+PYTHON       ?= python3
 
 .DEFAULT_GOAL := help
 
@@ -68,8 +69,8 @@ clean: ## Remove build artifacts
 
 .PHONY: check-agents
 check-agents: ## Verify complete agent skill packages
-	python scripts/sync-harness-skills.py --check
-	python scripts/test-sync-harness-skills.py
+	$(PYTHON) scripts/sync-harness-skills.py --check
+	$(PYTHON) scripts/test-sync-harness-skills.py
 
 .PHONY: check-clawhub
 check-clawhub: ## Verify the ClawHub skill bundle is exactly the whitelisted files (needs clawhub@0.26.0 installed globally)
