@@ -22,6 +22,13 @@ on:
           overwriting the live skill.
         required: true
         default: loseit
+      version:
+        description: >-
+          Explicit version to publish (e.g. 1.0.1). Leave empty to let clawhub
+          pick the next patch; set it when the slug's latest version is hidden
+          from the CLI and the automatic pick collides.
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -76,6 +83,7 @@ jobs:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN_LOSEIT }}
 
       - name: Publish skill
-        run: clawhub skill publish . --owner stozo04 --slug "$SLUG" --name "Lose It Nutrition"
+        run: clawhub skill publish . --owner stozo04 --slug "$SLUG" --name "Lose It Nutrition" ${VERSION:+--version "$VERSION"}
         env:
           SLUG: ${{ inputs.slug }}
+          VERSION: ${{ inputs.version }}
