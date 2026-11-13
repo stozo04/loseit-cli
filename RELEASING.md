@@ -64,6 +64,7 @@ header; add any release-specific narrative by editing the GitHub Release after i
 
 ## ClawHub (separate)
 
-The ClawHub skill is **not** tied to releases. It republishes whenever `SKILL.md` changes
-on `main`, via `.github/workflows/publish-clawhub.yml` (needs the `CLAWHUB_TOKEN_LOSEIT`
-repo secret). Bumping the CLI version does not require a ClawHub republish.
+The ClawHub skill is **not** tied to releases. It republishes whenever a bundled file
+(`SKILL.md`, `LICENSE`, `config.example.json`) or `.clawhubignore` changes on `main`, via `.github/workflows/publish-clawhub.yml` (needs the `CLAWHUB_TOKEN_LOSEIT`
+repo secret). Only those three files are published; `.claude/CLAWHUB_STANDARDS.md` §9
+explains why. Bumping the CLI version does not require a ClawHub republish.

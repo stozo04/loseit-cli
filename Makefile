@@ -5,6 +5,7 @@ BINARY       := loseit-cli
 PKG          := ./...
 MAIN         := ./cmd/loseit-cli
 LOCAL_PREFIX := github.com/stozo04/loseit-cli
+PYTHON       ?= python3
 
 .DEFAULT_GOAL := help
 
@@ -60,7 +61,7 @@ snapshot: ## Cross-compile a local snapshot with GoReleaser (no publish)
 	goreleaser build --snapshot --clean
 
 .PHONY: check
-check: check-agents tidy fmt vet lint test-race ## Run the full pre-commit gauntlet
+check: check-agents check-clawhub tidy fmt vet lint test-race ## Run the full pre-commit gauntlet
 
 .PHONY: clean
 clean: ## Remove build artifacts
@@ -68,5 +69,9 @@ clean: ## Remove build artifacts
 
 .PHONY: check-agents
 check-agents: ## Verify complete agent skill packages
-	python scripts/sync-harness-skills.py --check
-	python scripts/test-sync-harness-skills.py
+	$(PYTHON) scripts/sync-harness-skills.py --check
+	$(PYTHON) scripts/test-sync-harness-skills.py
+
+.PHONY: check-clawhub
+check-clawhub: ## Verify the ClawHub skill bundle is exactly the whitelisted files (needs clawhub@0.26.0 installed globally)
+	node scripts/check-clawhub-bundle.mjs
