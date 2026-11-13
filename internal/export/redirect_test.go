@@ -77,3 +77,19 @@ func TestFetchZipRefusesRedirectsThatLeaveLoseItOverHTTPS(t *testing.T) {
 		})
 	}
 }
+
+func TestExportRedirectFromLoseItToLoopbackIsRefused(t *testing.T) {
+	origin, err := http.NewRequest(http.MethodGet, config.DefaultExportURL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range []string{"http://127.0.0.1:8080/admin", "http://localhost/", "http://[::1]/"} {
+		next, err := http.NewRequest(http.MethodGet, target, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := firstPartyRedirectsOnly(next, []*http.Request{origin}); err == nil {
+			t.Errorf("a redirect from Lose It to %s must be refused", target)
+		}
+	}
+}

@@ -299,6 +299,9 @@ func firstPartyRedirectsOnly(req *http.Request, via []*http.Request) error {
 	if len(via) > maxExportRedirects {
 		return newErr("refusing to follow more than %d redirects.", maxExportRedirects)
 	}
+	if isLoopbackHost(req.URL.Hostname()) && !isLoopbackHost(via[0].URL.Hostname()) {
+		return newErr("refusing to follow a redirect from Lose It to a local address (%s).", req.URL.Hostname())
+	}
 	return assertFirstPartyURL(req.URL.String())
 }
 

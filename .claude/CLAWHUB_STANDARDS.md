@@ -193,11 +193,14 @@ cookie to `http://` Lose It in cleartext. A test proved both before the fix.
   (no redirect, verified 2026-11-13).
 - The export GET follows a redirect only if the target passes `assertFirstPartyURL`
   (`firstPartyRedirectsOnly`, at most 5 hops). Lose It redirects a cookieless export
-  request to `https://www.loseit.com/account/…`, which stays allowed.
+  request to `https://www.loseit.com/account/…`, which stays allowed. The test-only
+  loopback exemption in `assertFirstPartyURL` does not extend to redirects: a hop to a
+  loopback address is accepted only when the original request was already loopback.
 - Every new credential- or cookie-bearing request sets a `CheckRedirect` the same way.
 - Pinned by `internal/export/redirect_test.go::TestLoginNeverResendsCredentialsOnRedirect`
   (307, 308 and 302 to a second server, which must receive nothing) and
-  `TestFetchZipRefusesRedirectsThatLeaveLoseItOverHTTPS` (off-domain and `http://`).
+  `TestFetchZipRefusesRedirectsThatLeaveLoseItOverHTTPS` (off-domain and `http://`), and
+  `TestExportRedirectFromLoseItToLoopbackIsRefused`.
 
 ## 6. Nutrition-only scope + the write path lives in the consumer
 
@@ -366,6 +369,8 @@ Current set:
     the redirect target receives nothing (§5c).
   - `TestFetchZipRefusesRedirectsThatLeaveLoseItOverHTTPS` — the export never follows
     a redirect off `*.loseit.com` or to `http://` (§5c).
+  - `TestExportRedirectFromLoseItToLoopbackIsRefused` — a real Lose It response can't
+    redirect the client to a local address (§5c).
 - `internal/cli/docs_security_test.go::TestShippedSkillAvoidsUnsafeDefaultsPhrasing` —
   the shipped SKILL.md carries no `world-readable`-style phrase (§9).
 - `scripts/check-clawhub-bundle.mjs`
