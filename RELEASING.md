@@ -67,7 +67,13 @@ header; add any release-specific narrative by editing the GitHub Release after i
 The ClawHub skill is **not** tied to releases. It republishes whenever a bundled file
 (`SKILL.md`, `LICENSE`, `config.example.json`) or `.clawhubignore` changes on `main`, via `.github/workflows/publish-clawhub.yml` (needs the `CLAWHUB_TOKEN_LOSEIT`
 repo secret). Only those three files are published; `.claude/CLAWHUB_STANDARDS.md` §9
-explains why. Bumping the CLI version does not require a ClawHub republish. Every publish to the live
+explains why. Bumping the CLI version does not require a ClawHub republish, but the
+SKILL `install` entry installs `@latest`, so release after behavior changes land.
+
+ClawHub hides a new version until its security scans finish (about 10 minutes), and the CLI picks the
+next version from the latest public one. When two publishes land inside that window, the second gets
+`Version X already exists`. `scripts/publish-clawhub.sh`, which both ClawHub workflows call, retries
+as the next patch version (up to five attempts) and fails on any other error. Every publish to the live
 listing (a merge to `main` or a `target=live` branch run) waits in one `clawhub-publish-live` queue
 (`queue: max`, first in, first out), so none cancels or replaces another and a queued main publish
 is never dropped.
@@ -77,4 +83,4 @@ publishes to `loseit-scan-<run id>-<attempt>`, waits for the scan, puts the verd
 and the full report in the `clawhub-scan-report` artifact, then deletes the copy (it keeps the copy if
 the report could not be saved). The weekly **Sweep ClawHub scan copies** workflow deletes any copy a
 finished run left behind. Both use `scripts/clawhub-scan-copies.sh`, which refuses to delete anything
-outside the `loseit-scan-` prefix. `make test-scripts` tests it against a fake `clawhub`.
+outside the `loseit-scan-` prefix. `make test-scripts` tests both scripts against a fake `clawhub`.

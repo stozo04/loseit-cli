@@ -117,11 +117,14 @@ paste a real value into the same spot. Fixed by rewording, not by exception.
 - Request the **narrowest** scope that works. No new file reads/writes, network
   hosts, env vars, or required binaries without updating `SKILL.md` and asking
   whether a narrower option exists.
-- `metadata.openclaw` has no `requires` block — we ship a single static binary and
-  need no env var. Don't introduce a dependency on `sudo`, a shell, or an external
-  tool, and never shell out to run a privileged command. If a `requires` list is
-  ever needed, write it as a block list: the Agent Skills validator rejects inline
-  `[...]`.
+- `requires.bins` lists only `loseit-cli` itself (a single static binary), and
+  `metadata.openclaw.install` has one `kind: go` entry for
+  `github.com/stozo04/loseit-cli/cmd/loseit-cli@latest`. `@latest` must resolve to a
+  release whose behavior matches `SKILL.md`, so cut a release after behavior changes
+  land. If the module ever goes to v2, its path needs `/v2` first, and the install
+  entry with it. Don't introduce a dependency on `sudo`, a shell, or an external tool,
+  and never shell out to run a privileged command. Write every list as a block list:
+  the Agent Skills validator rejects inline `[...]`.
 
 ## 5. The credential endpoints are fixed — untrusted input can't redirect them
 

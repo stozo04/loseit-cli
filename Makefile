@@ -73,7 +73,8 @@ check-agents: ## Verify complete agent skill packages
 	$(PYTHON) scripts/test-sync-harness-skills.py
 
 .PHONY: test-scripts
-test-scripts: ## Test the ClawHub scan-copy script against a fake clawhub
+test-scripts: ## Test the ClawHub publish and scan-copy scripts against a fake clawhub
+	bash scripts/test-publish-clawhub.sh
 	bash scripts/test-clawhub-scan-copies.sh
 
 .PHONY: check-clawhub
