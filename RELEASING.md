@@ -68,3 +68,10 @@ The ClawHub skill is **not** tied to releases. It republishes whenever a bundled
 (`SKILL.md`, `LICENSE`, `config.example.json`) or `.clawhubignore` changes on `main`, via `.github/workflows/publish-clawhub.yml` (needs the `CLAWHUB_TOKEN_LOSEIT`
 repo secret). Only those three files are published; `.claude/CLAWHUB_STANDARDS.md` §9
 explains why. Bumping the CLI version does not require a ClawHub republish.
+
+To scan a branch without merging, run **Deploy to ClawHub (from branch)** with `target=scan-copy`. It
+publishes to `loseit-scan-<run id>-<attempt>`, waits for the scan, puts the verdict in the run summary
+and the full report in the `clawhub-scan-report` artifact, then deletes the copy (it keeps the copy if
+the report could not be saved). The weekly **Sweep ClawHub scan copies** workflow deletes any copy a
+finished run left behind. Both use `scripts/clawhub-scan-copies.sh`, which refuses to delete anything
+outside the `loseit-scan-` prefix. `make test-scripts` tests it against a fake `clawhub`.
