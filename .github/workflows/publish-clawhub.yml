@@ -43,4 +43,4 @@ jobs:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN_LOSEIT }}
 
       - name: Publish skill
-        run: clawhub skill publish . --owner stozo04 --slug loseit --name "Lose It Nutrition"
+        run: scripts/publish-clawhub.sh loseit stozo04 "Lose It Nutrition"

@@ -28,13 +28,6 @@ on:
         type: choice
         options: [scan-copy, live]
         default: scan-copy
-      version:
-        description: >-
-          Explicit version to publish (e.g. 1.0.1). Leave empty to let clawhub
-          pick the next patch; set it when the slug's latest version is hidden
-          from the CLI and the automatic pick collides.
-        required: false
-        default: ""
 
 permissions:
   contents: read
@@ -98,10 +91,9 @@ jobs:
         id: publish
         env:
           TARGET: ${{ inputs.target }}
-          VERSION: ${{ inputs.version }}
         run: |
           set -o pipefail
-          clawhub skill publish . --owner stozo04 --slug "$SLUG" --name "Lose It Nutrition" ${VERSION:+--version "$VERSION"} 2>&1 | tee "$RUNNER_TEMP/publish-output.txt"
+          scripts/publish-clawhub.sh "$SLUG" stozo04 "Lose It Nutrition" | tee "$RUNNER_TEMP/publish-output.txt"
           if [[ "$TARGET" == "scan-copy" ]]; then
             published=$(scripts/clawhub-scan-copies.sh version "$SLUG" < "$RUNNER_TEMP/publish-output.txt")
             echo "version=$published" >> "$GITHUB_OUTPUT"

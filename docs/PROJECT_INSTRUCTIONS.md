@@ -69,7 +69,7 @@ Surfacing any other domain is **out of scope by default.** Adding one would requ
 ## Build / test
 
 - Install Go and put it on PATH; derive helper locations from go env GOPATH (its bin directory) rather than an owner-specific path.
-- `make check` — or run directly: `go build ./...`, `go vet ./...`, `gofumpt -l .` (empty = clean), `golangci-lint run`, `go test -race ./...`, `make test-scripts` (ClawHub scan-copy script).
+- `make check` — or run directly: `go build ./...`, `go vet ./...`, `gofumpt -l .` (empty = clean), `golangci-lint run`, `go test -race ./...`, `make test-scripts` (ClawHub publish and scan-copy scripts).
 - **Then the live end-to-end test. Then the PR.**
 
 ## Guardrails
