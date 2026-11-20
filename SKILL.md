@@ -28,9 +28,6 @@ metadata:
         - "--zip file — a downloaded Lose It export ZIP, when the --zip path is used"
       files.write:
         - "token file — the session token obtained at login is saved to token_path (default ~/.config/loseit/token, mode 0600). No other writes; nutrition goes to stdout."
-    requires:
-      bins: []
-      env: []
     envVars:
       - name: LOSEIT_EMAIL
         description: "Lose It account email — for the email/password login path (recommended). Or set it in config.json."

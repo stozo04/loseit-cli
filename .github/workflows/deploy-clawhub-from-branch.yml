@@ -40,8 +40,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-clawhub-${{ inputs.target == 'live' && 'live' || github.run_id }}
+  group: ${{ inputs.target == 'live' && 'clawhub-publish-live' || format('clawhub-scan-copy-{0}', github.run_id) }}
   cancel-in-progress: false
+  queue: max
 
 env:
   SLUG: ${{ inputs.target == 'live' && 'loseit' || format('loseit-scan-{0}-{1}', github.run_id, github.run_attempt) }}
@@ -100,9 +101,9 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           set -o pipefail
-          clawhub skill publish . --owner stozo04 --slug "$SLUG" --name "Lose It Nutrition" ${VERSION:+--version "$VERSION"} 2>&1 | tee publish-output.txt
+          clawhub skill publish . --owner stozo04 --slug "$SLUG" --name "Lose It Nutrition" ${VERSION:+--version "$VERSION"} 2>&1 | tee "$RUNNER_TEMP/publish-output.txt"
           if [[ "$TARGET" == "scan-copy" ]]; then
-            published=$(scripts/clawhub-scan-copies.sh version "$SLUG" < publish-output.txt)
+            published=$(scripts/clawhub-scan-copies.sh version "$SLUG" < "$RUNNER_TEMP/publish-output.txt")
             echo "version=$published" >> "$GITHUB_OUTPUT"
           fi
 

@@ -117,9 +117,11 @@ paste a real value into the same spot. Fixed by rewording, not by exception.
 - Request the **narrowest** scope that works. No new file reads/writes, network
   hosts, env vars, or required binaries without updating `SKILL.md` and asking
   whether a narrower option exists.
-- `requires.bins` stays `[]` — we ship a single static binary. Don't introduce a
-  dependency on `sudo`, a shell, or an external tool, and never shell out to run a
-  privileged command.
+- `metadata.openclaw` has no `requires` block — we ship a single static binary and
+  need no env var. Don't introduce a dependency on `sudo`, a shell, or an external
+  tool, and never shell out to run a privileged command. If a `requires` list is
+  ever needed, write it as a block list: the Agent Skills validator rejects inline
+  `[...]`.
 
 ## 5. The credential endpoints are fixed — untrusted input can't redirect them
 
@@ -326,6 +328,10 @@ Run before merging anything that touches config, auth, file I/O, network, docs, 
       docs, comments, or commit messages on lines you touched.
 - [ ] `make check-clawhub` passes: the ClawHub bundle is exactly `SKILL.md`,
       `LICENSE`, `config.example.json` (§9).
+- [ ] Every skill copy passes the upstream Agent Skills validator (`skills-ref validate`;
+      CI job `agent skills spec`): only `name`, `description` (≤ 1024 chars), `license`,
+      `allowed-tools`, `metadata` and `compatibility` at the top level, and no inline
+      `[...]` / `{...}` YAML.
 - [ ] `go build ./... && go vet ./... && go test -race ./...` green; `gofumpt -l .`
       empty; `golangci-lint run` clean.
 - [ ] New security behavior is pinned by an **immutable regression test** (below).
