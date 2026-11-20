@@ -4,24 +4,30 @@ name: Deploy to ClawHub (from branch)
 #
 # The other workflow ("Publish to ClawHub") fires automatically when SKILL.md
 # lands on main — that's the production publish. THIS one is triggered by hand
-# from the Actions tab so you can re-run ClawHub's security scan against a PR /
+# from the Actions tab so you can run ClawHub's security scan against a PR /
 # feature branch WITHOUT merging to main: open Actions → "Deploy to ClawHub (from
 # branch)" → Run workflow → pick the branch in the dropdown.
 #
+# target=scan-copy (default) publishes to a throwaway slug named after this run
+# (loseit-scan-<run id>-<attempt>), waits for the scan, saves the verdict to the
+# run summary and the full report as an artifact, then deletes the copy so
+# test listings never pile up on ClawHub. If the report can't be saved the copy
+# stays for inspection, and the weekly sweep removes it later. target=live
+# republishes the real loseit listing from the chosen branch and
+# leaves it in place without waiting for the scan.
+#
 # Note: the "Run workflow" button only appears once this file is on the default
-# branch (main). To deploy a branch, that branch must also contain this file
-# (branches cut from main after it merges do; for an older branch, merge main in
-# first). The run publishes the SKILL.md of whichever branch you select.
+# branch (main). The run publishes the SKILL.md of whichever branch you select.
 on:
   workflow_dispatch:
     inputs:
-      slug:
+      target:
         description: >-
-          ClawHub slug to publish to. Keep `loseit` to re-scan the real listing,
-          or use a scratch slug (e.g. loseit-dev) to test the scan WITHOUT
-          overwriting the live skill.
-        required: true
-        default: loseit
+          scan-copy runs the scan on a throwaway copy and deletes it afterwards;
+          live overwrites the real loseit listing.
+        type: choice
+        options: [scan-copy, live]
+        default: scan-copy
       version:
         description: >-
           Explicit version to publish (e.g. 1.0.1). Leave empty to let clawhub
@@ -34,13 +40,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-clawhub-${{ inputs.slug }}
+  group: deploy-clawhub-${{ inputs.target == 'live' && 'live' || github.run_id }}
   cancel-in-progress: false
+
+env:
+  SLUG: ${{ inputs.target == 'live' && 'loseit' || format('loseit-scan-{0}-{1}', github.run_id, github.run_attempt) }}
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 45
     steps:
       # No `ref:` — checkout defaults to github.ref, i.e. the branch chosen in the
       # Run workflow dropdown, so we publish THAT branch's SKILL.md.
@@ -48,11 +57,11 @@ jobs:
 
       - name: Summarize what will be published
         # Values pass through env, never interpolated straight into the script, so
-        # a branch name or slug can't inject shell.
+        # a branch name can't inject shell.
         env:
           REF: ${{ github.ref_name }}
           SHA: ${{ github.sha }}
-          SLUG: ${{ inputs.slug }}
+          TARGET: ${{ inputs.target }}
           ACTOR: ${{ github.actor }}
         run: |
           {
@@ -62,8 +71,10 @@ jobs:
             echo "| --- | --- |"
             echo "| Branch / ref | \`$REF\` |"
             echo "| Commit | \`$SHA\` |"
+            echo "| Target | \`$TARGET\` |"
             echo "| Slug | \`$SLUG\` |"
             echo "| Triggered by | @$ACTOR |"
+            echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -83,7 +94,38 @@ jobs:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN_LOSEIT }}
 
       - name: Publish skill
-        run: clawhub skill publish . --owner stozo04 --slug "$SLUG" --name "Lose It Nutrition" ${VERSION:+--version "$VERSION"}
+        id: publish
         env:
-          SLUG: ${{ inputs.slug }}
           VERSION: ${{ inputs.version }}
+        run: |
+          set -o pipefail
+          clawhub skill publish . --owner stozo04 --slug "$SLUG" --name "Lose It Nutrition" ${VERSION:+--version "$VERSION"} 2>&1 | tee publish-output.txt
+          published=$(scripts/clawhub-scan-copies.sh version "$SLUG" < publish-output.txt)
+          echo "version=$published" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the ClawHub scan
+        if: ${{ inputs.target == 'scan-copy' }}
+        env:
+          VERSION: ${{ steps.publish.outputs.version }}
+        run: |
+          set -o pipefail
+          echo "### ClawHub scan" >> "$GITHUB_STEP_SUMMARY"
+          scripts/clawhub-scan-copies.sh await "$SLUG" "$VERSION" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Download the scan report
+        if: ${{ !cancelled() && inputs.target == 'scan-copy' && steps.publish.outputs.version != '' }}
+        env:
+          VERSION: ${{ steps.publish.outputs.version }}
+        run: clawhub scan download "$SLUG" --version "$VERSION" -o clawhub-scan-report.zip
+
+      - name: Keep the scan report
+        id: keep-report
+        if: ${{ !cancelled() && inputs.target == 'scan-copy' && hashFiles('clawhub-scan-report.zip') != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: clawhub-scan-report
+          path: clawhub-scan-report.zip
+
+      - name: Delete the scan copy
+        if: ${{ always() && inputs.target == 'scan-copy' && (cancelled() || steps.publish.outputs.version == '' || steps.keep-report.outcome == 'success') }}
+        run: scripts/clawhub-scan-copies.sh delete "$SLUG"
