@@ -96,12 +96,15 @@ jobs:
       - name: Publish skill
         id: publish
         env:
+          TARGET: ${{ inputs.target }}
           VERSION: ${{ inputs.version }}
         run: |
           set -o pipefail
           clawhub skill publish . --owner stozo04 --slug "$SLUG" --name "Lose It Nutrition" ${VERSION:+--version "$VERSION"} 2>&1 | tee publish-output.txt
-          published=$(scripts/clawhub-scan-copies.sh version "$SLUG" < publish-output.txt)
-          echo "version=$published" >> "$GITHUB_OUTPUT"
+          if [[ "$TARGET" == "scan-copy" ]]; then
+            published=$(scripts/clawhub-scan-copies.sh version "$SLUG" < publish-output.txt)
+            echo "version=$published" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Wait for the ClawHub scan
         if: ${{ inputs.target == 'scan-copy' }}
