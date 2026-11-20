@@ -67,7 +67,10 @@ header; add any release-specific narrative by editing the GitHub Release after i
 The ClawHub skill is **not** tied to releases. It republishes whenever a bundled file
 (`SKILL.md`, `LICENSE`, `config.example.json`) or `.clawhubignore` changes on `main`, via `.github/workflows/publish-clawhub.yml` (needs the `CLAWHUB_TOKEN_LOSEIT`
 repo secret). Only those three files are published; `.claude/CLAWHUB_STANDARDS.md` §9
-explains why. Bumping the CLI version does not require a ClawHub republish.
+explains why. Bumping the CLI version does not require a ClawHub republish. Every publish to the live
+listing (a merge to `main` or a `target=live` branch run) waits in one `clawhub-publish-live` queue
+(`queue: max`, first in, first out), so none cancels or replaces another and a queued main publish
+is never dropped.
 
 To scan a branch without merging, run **Deploy to ClawHub (from branch)** with `target=scan-copy`. It
 publishes to `loseit-scan-<run id>-<attempt>`, waits for the scan, puts the verdict in the run summary

@@ -62,3 +62,16 @@ jobs:
         run: npm install -g clawhub@0.26.0
       - name: Check the skill bundle
         run: make check-clawhub
+
+  agent-skills-spec:
+    name: agent skills spec
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate every skill copy with the upstream skills-ref (tracks spec updates)
+        run: |
+          for harness in .claude .codex .cursor; do
+            pipx run --spec "git+https://github.com/agentskills/agentskills#subdirectory=skills-ref" \
+              skills-ref validate "$harness/skills/loseit"
+          done
