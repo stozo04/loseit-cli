@@ -80,7 +80,7 @@ Surfacing any other domain is **out of scope by default.** Adding one would requ
 ## Pointers
 
 - `docs/MACHINE_CONTRACT.md` — machine contract (command shapes, JSON, exit codes, auth model).
-- `README.md` — user-facing setup. `RELEASING.md` — release pipeline. `SKILL.md` — ClawHub skill.
+- `README.md` — user-facing setup. `RELEASING.md` — release pipeline: release-please keeps a `chore(main): release X.Y.Z` PR open and picks the version from Conventional Commit types, and merging it tags and publishes the release. `SKILL.md` — ClawHub skill.
 - `.claude/CLAWHUB_STANDARDS.md` — **read before touching auth, config, file I/O, network, or docs.** The rules that keep the ClawHub security scan green (chief one: never call the tool "writes no files" — it caches a `0600` session token; always qualify "read-only" as *against your Lose It account*). Each rule is pinned by an immutable regression test.
 
 ## Retained review decisions
